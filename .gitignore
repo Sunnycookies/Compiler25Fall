@@ -1,0 +1,6 @@
+.DS_Store
+.gitconfig
+.vscode-server
+.bash_history
+
+build/
