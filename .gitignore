@@ -2,4 +2,5 @@
 .vscode-server
 .bash_history
 
+debug/
 build/
