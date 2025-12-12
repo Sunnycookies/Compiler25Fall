@@ -95,7 +95,7 @@ void Backend::Visit(std::ostream &os, const koopa_raw_return_t &ret) const
     {
         os << "\tli a0, 0";
     }
-    os << "\n\tret";
+    os << "\n\tret\n";
 }
 
 void Backend::Visit(std::ostream &os, const koopa_raw_integer_t &integer) const
