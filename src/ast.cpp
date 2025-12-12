@@ -8,7 +8,7 @@ std::ostream &operator<<(std::ostream &os, const BaseAST &ast)
     return os;
 }
 
-void CompUnitAST::Dump(std::ostream &os) const
+void CompUnitAST::Dump(std::ostream &os = std::cout) const
 {
     if (BaseAST::mode == MODE_DEBUG)
     {
@@ -17,14 +17,14 @@ void CompUnitAST::Dump(std::ostream &os) const
         os << " }";
         return;
     }
-    else if (BaseAST::mode == MODE_KOOPA)
+    else
     {
         func_def->Dump(os);
         return;
     }
 }
 
-void FuncDefAST::Dump(std::ostream &os) const
+void FuncDefAST::Dump(std::ostream &os = std::cout) const
 {
     if (BaseAST::mode == MODE_DEBUG)
     {
@@ -35,7 +35,7 @@ void FuncDefAST::Dump(std::ostream &os) const
         os << " }";
         return;
     }
-    else if (BaseAST::mode == MODE_KOOPA)
+    else
     {
         os << "fun @" << ident << "(): ";
         func_type->Dump(os);
@@ -46,14 +46,14 @@ void FuncDefAST::Dump(std::ostream &os) const
     }
 }
 
-void FuncTypeAST::Dump(std::ostream &os) const
+void FuncTypeAST::Dump(std::ostream &os = std::cout) const
 {
     if (BaseAST::mode == MODE_DEBUG)
     {
         os << "FuncTypeAST { " << type << " }";
         return;
     }
-    else if (BaseAST::mode == MODE_KOOPA)
+    else
     {
         if (type == "int")
         {
@@ -67,7 +67,7 @@ void FuncTypeAST::Dump(std::ostream &os) const
     }
 }
 
-void BlockAST::Dump(std::ostream &os) const
+void BlockAST::Dump(std::ostream &os = std::cout) const
 {
     if (BaseAST::mode == MODE_DEBUG)
     {
@@ -76,7 +76,7 @@ void BlockAST::Dump(std::ostream &os) const
         os << " }";
         return;
     }
-    else if (BaseAST::mode == MODE_KOOPA)
+    else
     {
         os << "%entry:\n";
         stmt->Dump(os);
@@ -84,16 +84,16 @@ void BlockAST::Dump(std::ostream &os) const
     }
 }
 
-void StmtAST::Dump(std::ostream &os) const
+void StmtAST::Dump(std::ostream &os = std::cout) const
 {
     if (BaseAST::mode == MODE_DEBUG)
     {
         os << "StmtAST { " << number << " }";
         return;
     }
-    else if (BaseAST::mode == MODE_KOOPA)
+    else
     {
-        os << "  ret " << number << "\n";
+        os << "\tret " << number << "\n";
         return;
     }
 }

@@ -4,7 +4,9 @@
 #include <memory>
 #include <string>
 #include <fstream>
+#include <sstream>
 #include "ast.hpp"
+#include "backend.hpp"
 
 using namespace std;
 
@@ -36,17 +38,25 @@ int main(int argc, const char *argv[])
     auto ret = yyparse(ast);
     assert(!ret);
 
-
     // 重定向标准输出
     if (BaseAST::mode == MODE_DEBUG)
     {
         cout << *ast << endl;
     }
-    else {
+    else if (BaseAST::mode == MODE_KOOPA)
+    {
         ofstream ofs(output);
         ofs << *ast << endl;
         ofs.close();
     }
-
+    else if (BaseAST::mode == MODE_RISCV)
+    {
+        ostringstream oss;
+        ofstream ofs(output);
+        oss << *ast << endl;
+        Backend backend(oss.str().c_str());
+        ofs << backend << endl;
+        ofs.close();
+    }
     return 0;
 }

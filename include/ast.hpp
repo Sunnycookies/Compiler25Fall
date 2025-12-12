@@ -3,9 +3,7 @@
 #include <memory>
 #include <string>
 #include <iostream>
-
-const std::string MODE_DEBUG = "-debug";
-const std::string MODE_KOOPA = "-koopa";
+#include "defs.hpp"
 
 // 所有 AST 的基类
 class BaseAST
