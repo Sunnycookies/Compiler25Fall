@@ -1,6 +1,51 @@
 #include "ast.hpp"
 
-std::string BaseAST::mode = MODE_DEBUG;
+int AsOperant::reg_count = 0;
+
+AsOperant::AsOperant()
+{
+    type = IMM;
+    value.imm_value = 0;
+}
+
+AsOperant::~AsOperant()
+{
+    // pass
+}
+
+AsOperant::AsOperant(const AsOperant &operant)
+{
+    type = operant.type;
+    value = operant.value;
+}
+
+AsOperant::AsOperant(const operant_type &t, const int &v = 0)
+{
+    type = t;
+    if (type == REG)
+    {
+        value.reg_no = reg_count++;
+    }
+    else if (type == IMM)
+    {
+        value.imm_value = v;
+    }
+}
+
+std::ostream &operator<<(std::ostream &os, const AsOperant &operant)
+{
+    if (operant.type == AsOperant::REG)
+    {
+        os << "%" << operant.value.reg_no;
+    }
+    else if (operant.type == AsOperant::IMM)
+    {
+        os << operant.value.imm_value;
+    }
+    return os;
+}
+
+std::string BaseAST::mode = MODE_KOOPA;
 
 std::ostream &operator<<(std::ostream &os, const BaseAST &ast)
 {
@@ -8,92 +53,88 @@ std::ostream &operator<<(std::ostream &os, const BaseAST &ast)
     return os;
 }
 
-void CompUnitAST::Dump(std::ostream &os = std::cout) const
+AsOperant CompUnitAST::Dump(std::ostream &os = std::cout) const
 {
-    if (BaseAST::mode == MODE_DEBUG)
-    {
-        os << "CompUnitAST { ";
-        func_def->Dump(os);
-        os << " }";
-        return;
-    }
-    else
-    {
-        func_def->Dump(os);
-        return;
-    }
+    func_def->Dump(os);
+    return AsOperant();
 }
 
-void FuncDefAST::Dump(std::ostream &os = std::cout) const
+AsOperant FuncDefAST::Dump(std::ostream &os = std::cout) const
 {
-    if (BaseAST::mode == MODE_DEBUG)
-    {
-        os << "FuncDefAST { ";
-        func_type->Dump(os);
-        os << ", " << ident << ", ";
-        block->Dump(os);
-        os << " }";
-        return;
-    }
-    else
-    {
-        os << "fun @" << ident << "(): ";
-        func_type->Dump(os);
-        os << " {\n";
-        block->Dump(os);
-        os << "}\n";
-        return;
-    }
+    os << "fun @" << ident << "(): ";
+    func_type->Dump(os);
+    os << " {\n";
+    block->Dump(os);
+    os << "}\n";
+    return AsOperant();
 }
 
-void FuncTypeAST::Dump(std::ostream &os = std::cout) const
+AsOperant TypeAST::Dump(std::ostream &os = std::cout) const
 {
-    if (BaseAST::mode == MODE_DEBUG)
+    if (type == "int")
     {
-        os << "FuncTypeAST { " << type << " }";
-        return;
+        os << "i32";
     }
-    else
+    return AsOperant();
+}
+
+AsOperant BlockAST::Dump(std::ostream &os = std::cout) const
+{
+    os << "%entry:\n";
+    stmt->Dump(os);
+    return AsOperant();
+}
+
+AsOperant StmtAST::Dump(std::ostream &os = std::cout) const
+{
+    AsOperant operant = exp->Dump(os);
+    os << "\tret " << operant << "\n";
+    return AsOperant();
+}
+
+AsOperant ExpAST::Dump(std::ostream &os = std::cout) const
+{
+    return unary_exp->Dump(os);
+}
+
+AsOperant NumberAST::Dump(std::ostream &os = std::cout) const
+{
+    return AsOperant(AsOperant::IMM, number);
+}
+
+AsOperant PrimaryExpAST::Dump(std::ostream &os = std::cout) const
+{
+    return exp_or_number->Dump(os);
+}
+
+AsOperant UnaryExpAST::Dump(std::ostream &os = std::cout) const
+{
+    if (type == PRIMARY_EXP)
     {
-        if (type == "int")
+        return primary_or_unary_exp->Dump(os);
+    }
+    else if (type == UNARY_EXP)
+    {
+        AsOperant operand = primary_or_unary_exp->Dump(os);
+        AsOperant result = AsOperant(AsOperant::REG);
+        switch (unary_op[0])
         {
-            os << "i32";
-        }
-        else if (type == "void")
-        {
-            os << "void";
-        }
-        return;
-    }
-}
+        case '+':
+            os << "\t" << result << " = add 0, " << operand << "\n";
+            break;
 
-void BlockAST::Dump(std::ostream &os = std::cout) const
-{
-    if (BaseAST::mode == MODE_DEBUG)
-    {
-        os << "BlockAST { ";
-        stmt->Dump(os);
-        os << " }";
-        return;
-    }
-    else
-    {
-        os << "%entry:\n";
-        stmt->Dump(os);
-        return;
-    }
-}
+        case '-':
+            os << "\t" << result << " = sub 0, " << operand << "\n";
+            break;
 
-void StmtAST::Dump(std::ostream &os = std::cout) const
-{
-    if (BaseAST::mode == MODE_DEBUG)
-    {
-        os << "StmtAST { " << number << " }";
-        return;
+        case '!':
+            os << "\t" << result << " = eq " << operand << ", 0\n";
+            break;
+
+        default:
+            assert(false);
+        }
+        return result;
     }
-    else
-    {
-        os << "\tret " << number << "\n";
-        return;
-    }
+    return AsOperant();
 }
