@@ -77,7 +77,7 @@ public:
 class ExpAST : public BaseAST
 {
 public:
-    std::unique_ptr<BaseAST> add_exp;
+    std::unique_ptr<BaseAST> lor_exp;
     AsOperand Dump(std::ostream &os) const override;
 };
 
@@ -133,5 +133,61 @@ public:
     std::unique_ptr<BaseAST> add_exp;
     std::string add_op;
     std::unique_ptr<BaseAST> mul_exp;
+    AsOperand Dump(std::ostream &os) const override;
+};
+
+class RelExpAST : public BaseAST
+{
+public:
+    enum rel_exp_type
+    {
+        ADD_EXP,
+        BINARY_EXP
+    } type;
+    std::unique_ptr<BaseAST> rel_exp;
+    std::string rel_op;
+    std::unique_ptr<BaseAST> add_exp;
+    AsOperand Dump(std::ostream &os) const override;
+};
+
+class EqExpAST : public BaseAST
+{
+public:
+    enum eq_exp_type
+    {
+        REL_EXP,
+        BINARY_EXP
+    } type;
+    std::unique_ptr<BaseAST> eq_exp;
+    std::string eq_op;
+    std::unique_ptr<BaseAST> rel_exp;
+    AsOperand Dump(std::ostream &os) const override;
+};
+
+class LAndExpAST : public BaseAST
+{
+public:
+    enum land_exp_type
+    {
+        EQ_EXP,
+        BINARY_EXP
+    } type;
+    std::unique_ptr<BaseAST> land_exp;
+    std::string land_op;
+    std::unique_ptr<BaseAST> eq_exp;
+    AsOperand Dump(std::ostream &os) const override;
+};
+
+class LOrExpAST : public BaseAST
+{
+public:
+    enum lor_exp_type
+    {
+        LAND_EXP,
+        BINARY_EXP
+    } type;
+    std::unique_ptr<BaseAST> lor_exp;
+    std::string lor_op;
+    std::unique_ptr<BaseAST> land_exp;
     AsOperand Dump(std::ostream &os) const override;
 };

@@ -32,7 +32,10 @@ Hexadecimal   0[xX][0-9a-fA-F]+
 NotOp         "!"
 MulOp         [\*/%]
 AddOp         [\+\-]
-
+RelOp         ("<"|">"|"<="|">=")
+EqOp          ("=="|"!=")
+AndOp         "&&"
+OrOp          "||"
 
 %%
 
@@ -52,7 +55,10 @@ AddOp         [\+\-]
 {NotOp}         { yylval.str_val = new string(yytext); return NOT_OP; }
 {AddOp}         { yylval.str_val = new string(yytext); return ADD_OP; }
 {MulOp}         { yylval.str_val = new string(yytext); return MUL_OP; }
-
+{RelOp}         { yylval.str_val = new string(yytext); return REL_OP; }
+{EqOp}          { yylval.str_val = new string(yytext); return EQ_OP; }
+{AndOp}         { yylval.str_val = new string(yytext); return AND_OP; }
+{OrOp}          { yylval.str_val = new string(yytext); return OR_OP; }
 
 .               { return yytext[0]; }
 

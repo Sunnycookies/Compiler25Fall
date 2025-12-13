@@ -94,7 +94,7 @@ AsOperand StmtAST::Dump(std::ostream &os = std::cout) const
 
 AsOperand ExpAST::Dump(std::ostream &os = std::cout) const
 {
-    return add_exp->Dump(os);
+    return lor_exp->Dump(os);
 }
 
 AsOperand NumberAST::Dump(std::ostream &os = std::cout) const
@@ -196,6 +196,110 @@ AsOperand AddExpAST::Dump(std::ostream &os = std::cout) const
         default:
             assert(false);
         }
+        return result;
+    }
+    return AsOperand();
+}
+
+AsOperand RelExpAST::Dump(std::ostream &os = std::cout) const
+{
+    if (type == ADD_EXP)
+    {
+        return add_exp->Dump(os);
+    }
+    else if (type == BINARY_EXP)
+    {
+        AsOperand left = rel_exp->Dump(os);
+        AsOperand right = add_exp->Dump(os);
+        AsOperand result = AsOperand(AsOperand::REG);
+        if (rel_op == "<")
+        {
+            os << "\t" << result << " = lt " << left << ", " << right << "\n";
+        }
+        else if (rel_op == ">")
+        {
+            os << "\t" << result << " = gt " << left << ", " << right << "\n";
+        }
+        else if (rel_op == "<=")
+        {
+            os << "\t" << result << " = le " << left << ", " << right << "\n";
+        }
+        else if (rel_op == ">=")
+        {
+            os << "\t" << result << " = ge " << left << ", " << right << "\n";
+        }
+        else
+        {
+            assert(false);
+        }
+        return result;
+    }
+    return AsOperand();
+}
+
+AsOperand EqExpAST::Dump(std::ostream &os = std::cout) const
+{
+    if (type == REL_EXP)
+    {
+        return rel_exp->Dump(os);
+    }
+    else if (type == BINARY_EXP)
+    {
+        AsOperand left = eq_exp->Dump(os);
+        AsOperand right = rel_exp->Dump(os);
+        AsOperand result = AsOperand(AsOperand::REG);
+        if (eq_op == "==")
+        {
+            os << "\t" << result << " = eq " << left << ", " << right << "\n";
+        }
+        else if (eq_op == "!=")
+        {
+            os << "\t" << result << " = ne " << left << ", " << right << "\n";
+        }
+        else
+        {
+            assert(false);
+        }
+        return result;
+    }
+    return AsOperand();
+}
+
+AsOperand LAndExpAST::Dump(std::ostream &os = std::cout) const
+{
+    if (type == EQ_EXP)
+    {
+        return eq_exp->Dump(os);
+    }
+    else if (type == BINARY_EXP)
+    {
+        AsOperand left = land_exp->Dump(os);
+        AsOperand right = eq_exp->Dump(os);
+        AsOperand bool_left = AsOperand(AsOperand::REG);
+        AsOperand bool_right = AsOperand(AsOperand::REG);
+        AsOperand result = AsOperand(AsOperand::REG);
+        os << "\t" << bool_left << " = ne " << left << ", 0\n";
+        os << "\t" << bool_right << " = ne " << right << ", 0\n";
+        os << "\t" << result << " = and " << bool_left << ", " << bool_right << "\n";
+        return result;
+    }
+    return AsOperand();
+}
+
+AsOperand LOrExpAST::Dump(std::ostream &os = std::cout) const
+{
+    if (type == LAND_EXP)
+    {
+        return land_exp->Dump(os);
+    }
+    else if (type == BINARY_EXP)
+    {
+        AsOperand left = lor_exp->Dump(os);
+        AsOperand right = land_exp->Dump(os);
+        AsOperand lr_or = AsOperand(AsOperand::REG);
+        AsOperand result = AsOperand(AsOperand::REG);
+        os << "\t" << lr_or << " = or " << left << ", " << right << "\n";
+        os << "\t" << result << " = ne " << lr_or << ", 0\n";
         return result;
     }
     return AsOperand();
