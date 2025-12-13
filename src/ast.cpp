@@ -1,25 +1,25 @@
 #include "ast.hpp"
 
-int AsOperant::reg_count = 0;
+int AsOperand::reg_count = 0;
 
-AsOperant::AsOperant()
+AsOperand::AsOperand()
 {
     type = IMM;
     value.imm_value = 0;
 }
 
-AsOperant::~AsOperant()
+AsOperand::~AsOperand()
 {
     // pass
 }
 
-AsOperant::AsOperant(const AsOperant &operant)
+AsOperand::AsOperand(const AsOperand &operant)
 {
     type = operant.type;
     value = operant.value;
 }
 
-AsOperant::AsOperant(const operant_type &t, const int &v = 0)
+AsOperand::AsOperand(const operant_type &t, const int &v = 0)
 {
     type = t;
     if (type == REG)
@@ -32,13 +32,13 @@ AsOperant::AsOperant(const operant_type &t, const int &v = 0)
     }
 }
 
-std::ostream &operator<<(std::ostream &os, const AsOperant &operant)
+std::ostream &operator<<(std::ostream &os, const AsOperand &operant)
 {
-    if (operant.type == AsOperant::REG)
+    if (operant.type == AsOperand::REG)
     {
         os << "%" << operant.value.reg_no;
     }
-    else if (operant.type == AsOperant::IMM)
+    else if (operant.type == AsOperand::IMM)
     {
         os << operant.value.imm_value;
     }
@@ -53,61 +53,61 @@ std::ostream &operator<<(std::ostream &os, const BaseAST &ast)
     return os;
 }
 
-AsOperant CompUnitAST::Dump(std::ostream &os = std::cout) const
+AsOperand CompUnitAST::Dump(std::ostream &os = std::cout) const
 {
     func_def->Dump(os);
-    return AsOperant();
+    return AsOperand();
 }
 
-AsOperant FuncDefAST::Dump(std::ostream &os = std::cout) const
+AsOperand FuncDefAST::Dump(std::ostream &os = std::cout) const
 {
     os << "fun @" << ident << "(): ";
     func_type->Dump(os);
     os << " {\n";
     block->Dump(os);
     os << "}\n";
-    return AsOperant();
+    return AsOperand();
 }
 
-AsOperant TypeAST::Dump(std::ostream &os = std::cout) const
+AsOperand TypeAST::Dump(std::ostream &os = std::cout) const
 {
     if (type == "int")
     {
         os << "i32";
     }
-    return AsOperant();
+    return AsOperand();
 }
 
-AsOperant BlockAST::Dump(std::ostream &os = std::cout) const
+AsOperand BlockAST::Dump(std::ostream &os = std::cout) const
 {
     os << "%entry:\n";
     stmt->Dump(os);
-    return AsOperant();
+    return AsOperand();
 }
 
-AsOperant StmtAST::Dump(std::ostream &os = std::cout) const
+AsOperand StmtAST::Dump(std::ostream &os = std::cout) const
 {
-    AsOperant operant = exp->Dump(os);
+    AsOperand operant = exp->Dump(os);
     os << "\tret " << operant << "\n";
-    return AsOperant();
+    return AsOperand();
 }
 
-AsOperant ExpAST::Dump(std::ostream &os = std::cout) const
+AsOperand ExpAST::Dump(std::ostream &os = std::cout) const
 {
-    return unary_exp->Dump(os);
+    return add_exp->Dump(os);
 }
 
-AsOperant NumberAST::Dump(std::ostream &os = std::cout) const
+AsOperand NumberAST::Dump(std::ostream &os = std::cout) const
 {
-    return AsOperant(AsOperant::IMM, number);
+    return AsOperand(AsOperand::IMM, number);
 }
 
-AsOperant PrimaryExpAST::Dump(std::ostream &os = std::cout) const
+AsOperand PrimaryExpAST::Dump(std::ostream &os = std::cout) const
 {
     return exp_or_number->Dump(os);
 }
 
-AsOperant UnaryExpAST::Dump(std::ostream &os = std::cout) const
+AsOperand UnaryExpAST::Dump(std::ostream &os = std::cout) const
 {
     if (type == PRIMARY_EXP)
     {
@@ -115,8 +115,8 @@ AsOperant UnaryExpAST::Dump(std::ostream &os = std::cout) const
     }
     else if (type == UNARY_EXP)
     {
-        AsOperant operand = primary_or_unary_exp->Dump(os);
-        AsOperant result = AsOperant(AsOperant::REG);
+        AsOperand operand = primary_or_unary_exp->Dump(os);
+        AsOperand result = AsOperand(AsOperand::REG);
         switch (unary_op[0])
         {
         case '+':
@@ -136,5 +136,67 @@ AsOperant UnaryExpAST::Dump(std::ostream &os = std::cout) const
         }
         return result;
     }
-    return AsOperant();
+    return AsOperand();
+}
+
+AsOperand MulExpAST::Dump(std::ostream &os = std::cout) const
+{
+    if (type == UNARY_EXP)
+    {
+        return unary_exp->Dump(os);
+    }
+    else if (type == BINARY_EXP)
+    {
+        AsOperand left = mul_exp->Dump(os);
+        AsOperand right = unary_exp->Dump(os);
+        AsOperand result = AsOperand(AsOperand::REG);
+        switch (mul_op[0])
+        {
+        case '*':
+            os << "\t" << result << " = mul " << left << ", " << right << "\n";
+            break;
+
+        case '/':
+            os << "\t" << result << " = div " << left << ", " << right << "\n";
+            break;
+
+        case '%':
+            os << "\t" << result << " = mod " << left << ", " << right << "\n";
+            break;
+
+        default:
+            assert(false);
+        }
+        return result;
+    }
+    return AsOperand();
+}
+
+AsOperand AddExpAST::Dump(std::ostream &os = std::cout) const
+{
+    if (type == MUL_EXP)
+    {
+        return mul_exp->Dump(os);
+    }
+    else if (type == BINARY_EXP)
+    {
+        AsOperand left = add_exp->Dump(os);
+        AsOperand right = mul_exp->Dump(os);
+        AsOperand result = AsOperand(AsOperand::REG);
+        switch (add_op[0])
+        {
+        case '+':
+            os << "\t" << result << " = add " << left << ", " << right << "\n";
+            break;
+
+        case '-':
+            os << "\t" << result << " = sub " << left << ", " << right << "\n";
+            break;
+
+        default:
+            assert(false);
+        }
+        return result;
+    }
+    return AsOperand();
 }

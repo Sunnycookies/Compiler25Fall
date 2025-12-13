@@ -30,7 +30,9 @@ Hexadecimal   0[xX][0-9a-fA-F]+
 
 /* 运算符 */
 NotOp         "!"
+MulOp         [\*/%]
 AddOp         [\+\-]
+
 
 %%
 
@@ -49,6 +51,8 @@ AddOp         [\+\-]
 
 {NotOp}         { yylval.str_val = new string(yytext); return NOT_OP; }
 {AddOp}         { yylval.str_val = new string(yytext); return ADD_OP; }
+{MulOp}         { yylval.str_val = new string(yytext); return MUL_OP; }
+
 
 .               { return yytext[0]; }
 

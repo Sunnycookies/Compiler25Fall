@@ -30,9 +30,10 @@ using namespace std;
 %token INT RETURN
 %token <str_val> IDENT
 %token <int_val> INT_CONST
-%token <str_val> NOT_OP ADD_OP
+%token <str_val> NOT_OP ADD_OP MUL_OP
 
-%type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp Number UnaryExp
+%type <ast_val> FuncDef FuncType Block Stmt Exp 
+%type <ast_val> Number PrimaryExp UnaryExp MulExp AddExp
 
 %%
 
@@ -78,6 +79,14 @@ Stmt
   }
   ;
 
+Exp
+  : AddExp {
+    auto ast = new ExpAST();
+    ast->add_exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  ;
+
 Number
   : INT_CONST {
     auto ast = new NumberAST();
@@ -89,13 +98,11 @@ Number
 PrimaryExp
   : '(' Exp ')' {
     auto ast = new PrimaryExpAST();
-    ast->type = PrimaryExpAST::EXP;
     ast->exp_or_number = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
   | Number {
     auto ast = new PrimaryExpAST();
-    ast->type = PrimaryExpAST::NUMBER;
     ast->exp_or_number = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
@@ -124,10 +131,36 @@ UnaryExp
   }
   ;
 
-Exp
+MulExp
   : UnaryExp {
-    auto ast = new ExpAST();
+    auto ast = new MulExpAST();
+    ast->type = MulExpAST::UNARY_EXP;
     ast->unary_exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | MulExp MUL_OP UnaryExp {
+    auto ast = new MulExpAST();
+    ast->type = MulExpAST::BINARY_EXP;
+    ast->mul_exp = unique_ptr<BaseAST>($1);
+    ast->mul_op = *unique_ptr<string>($2);
+    ast->unary_exp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+AddExp
+  : MulExp {
+    auto ast = new AddExpAST();
+    ast->type = AddExpAST::MUL_EXP;
+    ast->mul_exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | AddExp ADD_OP MulExp {
+    auto ast = new AddExpAST();
+    ast->type = AddExpAST::BINARY_EXP;
+    ast->add_exp = unique_ptr<BaseAST>($1);
+    ast->add_op = *unique_ptr<string>($2);
+    ast->mul_exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   ;

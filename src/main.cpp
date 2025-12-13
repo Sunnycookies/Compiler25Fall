@@ -42,14 +42,14 @@ int main(int argc, const char *argv[])
     ofstream ofs(output);
     if (BaseAST::mode == MODE_KOOPA)
     {
-        ofs << *ast << endl;
+        ofs << *ast;
     }
     else if (BaseAST::mode == MODE_RISCV)
     {
         ostringstream oss;
-        oss << *ast << endl;
+        oss << *ast;
         Backend backend(oss.str().c_str());
-        ofs << backend << endl;
+        ofs << backend;
     }
     ofs.close();
     
