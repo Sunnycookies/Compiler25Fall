@@ -1,5 +1,82 @@
 #include "backend.hpp"
 
+int Register::usable_reg_num = 15;
+
+int Register::ret_reg_no = 8;
+
+int *Register::reg_record = new int[Register::usable_reg_num + 1];
+
+std::unordered_map<koopa_raw_value_t, int> Register::value_reg_map;
+
+Register::Register()
+{
+    reg_no = 0;
+}
+
+Register::Register(const koopa_raw_value_t &value, const bool &allocation_checked = false)
+{
+    if (allocation_checked || allocated(value))
+    {
+        reg_no = value_reg_map[value];
+    }
+    else
+    {
+        reg_no = valid_reg_no();
+        value_reg_map[value] = reg_no;
+    }
+}
+
+Register::~Register()
+{
+    // pass
+}
+
+std::ostream &operator<<(std::ostream &os, const Register &reg)
+{
+    if (reg.reg_no == 0)
+    {
+        os << "x0";
+    }
+    else if (reg.reg_no <= 7)
+    {
+        os << "t" << reg.reg_no - 1;
+    }
+    else if (reg.reg_no <= 15)
+    {
+        os << "a" << reg.reg_no - 8;
+    }
+    return os;
+}
+
+bool Register::allocated(const koopa_raw_value_t &value)
+{
+    return Register::value_reg_map.find(value) != Register::value_reg_map.end();
+}
+
+int Register::valid_reg_no()
+{
+    for (int i = 1; i <= usable_reg_num; ++i)
+    {
+        if (reg_record[i] == 0)
+        {
+            reg_record[i] = 1;
+            return i;
+        }
+    }
+    assert(false);
+    return -1;
+}
+
+bool Register::occupy_ret_reg()
+{
+    return reg_no == ret_reg_no;
+}
+
+void Register::unallocate()
+{
+    reg_record[reg_no] = 0;
+}
+
 Backend::Backend(const char *koopa_str)
 {
     // 解析字符串 koopa_str, 得到 Koopa IR 程序
@@ -20,20 +97,21 @@ Backend::~Backend()
     koopa_delete_raw_program_builder(builder);
 }
 
-std::ostream &operator<<(std::ostream &os, const Backend &backend)
+std::ostream &operator<<(std::ostream &os, Backend &backend)
 {
     backend.Visit(os);
     return os;
 }
 
-void Backend::Visit(std::ostream &os = std::cout) const
+void Backend::Visit(std::ostream &os = std::cout)
 {
-    Visit(os, raw_program.values);
-    os << "\t.text\n";
-    Visit(os, raw_program.funcs);
+    pos = &os;
+    Visit(raw_program.values);
+    *pos << "\t.text\n";
+    Visit(raw_program.funcs);
 }
 
-void Backend::Visit(std::ostream &os, const koopa_raw_slice_t &slice) const
+Register Backend::Visit(const koopa_raw_slice_t &slice)
 {
     for (size_t i = 0; i < slice.len; ++i)
     {
@@ -41,64 +119,143 @@ void Backend::Visit(std::ostream &os, const koopa_raw_slice_t &slice) const
         switch (slice.kind)
         {
         case KOOPA_RSIK_FUNCTION:
-            Visit(os, reinterpret_cast<koopa_raw_function_t>(ptr));
+            Visit(reinterpret_cast<koopa_raw_function_t>(ptr));
             break;
         case KOOPA_RSIK_BASIC_BLOCK:
-            Visit(os, reinterpret_cast<koopa_raw_basic_block_t>(ptr));
+            Visit(reinterpret_cast<koopa_raw_basic_block_t>(ptr));
             break;
         case KOOPA_RSIK_VALUE:
-            Visit(os, reinterpret_cast<koopa_raw_value_t>(ptr));
+            Visit(reinterpret_cast<koopa_raw_value_t>(ptr));
             break;
         default:
             assert(false);
         }
     }
+    return Register();
 }
 
-void Backend::Visit(std::ostream &os, const koopa_raw_function_t &func) const
+Register Backend::Visit(const koopa_raw_function_t &func)
 {
-    os << "\t.global " << func->name + 1 << "\n";
-    os << func->name + 1 << ":\n";
-    Visit(os, func->bbs);
+    *pos << "\t.global " << func->name + 1 << "\n";
+    *pos << func->name + 1 << ":\n";
+    Visit(func->bbs);
+    return Register();
 }
 
-void Backend::Visit(std::ostream &os, const koopa_raw_basic_block_t &bb) const
+Register Backend::Visit(const koopa_raw_basic_block_t &bb)
 {
-    Visit(os, bb->insts);
+    Visit(bb->insts);
+    return Register();
 }
 
-void Backend::Visit(std::ostream &os, const koopa_raw_value_t &value) const
+Register Backend::Visit(const koopa_raw_return_t &ret)
 {
+    if (!ret.value)
+    {
+        *pos << "\tli a0, 0\n";
+    }
+    else if (ret.value->kind.tag == KOOPA_RVT_INTEGER)
+    {
+        *pos << "\tli a0, " << ret.value->kind.data.integer.value << "\n";
+    }
+    else
+    {
+        Register value_reg = Visit(ret.value);
+        if (!value_reg.occupy_ret_reg())
+        {
+            *pos << "\tmv a0, " << value_reg << "\n";
+        }
+    }
+    *pos << "\tret\n";
+    return Register();
+}
+
+Register Backend::Visit(const koopa_raw_value_t &value)
+{
+    if (Register::allocated(value))
+    {
+        return Register(value, true);
+    }
     const auto &kind = value->kind;
     switch (kind.tag)
     {
     case KOOPA_RVT_RETURN:
-        Visit(os, kind.data.ret);
-        break;
+        return Visit(kind.data.ret);
     case KOOPA_RVT_INTEGER:
-        Visit(os, kind.data.integer);
+        return Visit(value, kind.data.integer);
+    case KOOPA_RVT_BINARY:
+        return Visit(value, kind.data.binary);
+    default:
+        assert(false);
+    }
+    return Register();
+}
+
+Register Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_integer_t &integer)
+{
+    Register int_reg = Register();
+    if (integer.value)
+    {
+        int_reg = Register(value);
+        *pos << "\tli " << int_reg << ", " << integer.value << "\n";
+    }
+    return int_reg;
+}
+
+Register Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_binary_t &binary)
+{
+    Register lhs_reg = Visit(binary.lhs);
+    Register rhs_reg = Visit(binary.rhs);
+    Register result_reg = Register(value);
+    switch (binary.op)
+    {
+    case KOOPA_RBO_ADD:
+        *pos << "\tadd " << result_reg << ", " << lhs_reg << ", " << rhs_reg << "\n";
+        break;
+    case KOOPA_RBO_SUB:
+        *pos << "\tsub " << result_reg << ", " << lhs_reg << ", " << rhs_reg << "\n";
+        break;
+    case KOOPA_RBO_MUL:
+        *pos << "\tmul " << result_reg << ", " << lhs_reg << ", " << rhs_reg << "\n";
+        break;
+    case KOOPA_RBO_DIV:
+        *pos << "\tdiv " << result_reg << ", " << lhs_reg << ", " << rhs_reg << "\n";
+        break;
+    case KOOPA_RBO_MOD:
+        *pos << "\trem " << result_reg << ", " << lhs_reg << ", " << rhs_reg << "\n";
+        break;
+    case KOOPA_RBO_LT:
+        *pos << "\tslt " << result_reg << ", " << lhs_reg << ", " << rhs_reg << "\n";
+        break;
+    case KOOPA_RBO_LE:
+        *pos << "\tsgt " << result_reg << ", " << lhs_reg << ", " << rhs_reg << "\n";
+        *pos << "\tseqz " << result_reg << ", " << result_reg << "\n";
+        break;
+    case KOOPA_RBO_GT:
+        *pos << "\tsgt " << result_reg << ", " << lhs_reg << ", " << rhs_reg << "\n";
+        break;
+    case KOOPA_RBO_GE:
+        *pos << "\tslt " << result_reg << ", " << lhs_reg << ", " << rhs_reg << "\n";
+        *pos << "\tseqz " << result_reg << ", " << result_reg << "\n";
+        break;
+    case KOOPA_RBO_EQ:
+        *pos << "\txor " << result_reg << ", " << lhs_reg << ", " << rhs_reg << "\n";
+        *pos << "\tseqz " << result_reg << ", " << result_reg << "\n";
+        break;
+    case KOOPA_RBO_NOT_EQ:
+        *pos << "\txor " << result_reg << ", " << lhs_reg << ", " << rhs_reg << "\n";
+        *pos << "\tsnez " << result_reg << ", " << result_reg << "\n";
+        break;
+    case KOOPA_RBO_AND:
+        *pos << "\tand " << result_reg << ", " << lhs_reg << ", " << rhs_reg << "\n";
+        break;
+    case KOOPA_RBO_OR:
+        *pos << "\tor " << result_reg << ", " << lhs_reg << ", " << rhs_reg << "\n";
         break;
     default:
         assert(false);
     }
-}
-
-void Backend::Visit(std::ostream &os, const koopa_raw_return_t &ret) const
-{
-    // 访问 return 指令的返回值
-    if (ret.value)
-    {
-        os << "\tli a0, ";
-        Visit(os, ret.value);
-    }
-    else
-    {
-        os << "\tli a0, 0";
-    }
-    os << "\n\tret\n";
-}
-
-void Backend::Visit(std::ostream &os, const koopa_raw_integer_t &integer) const
-{
-    os << integer.value;
+    lhs_reg.unallocate();
+    rhs_reg.unallocate();
+    return result_reg;
 }
