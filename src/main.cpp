@@ -27,8 +27,6 @@ int main(int argc, const char *argv[])
     auto input = argv[2];
     auto output = argv[4];
 
-    BaseAST::mode = std::string(mode);
-
     // 打开输入文件, 并且指定 lexer 在解析的时候读取这个文件
     yyin = fopen(input, "r");
     assert(yyin);
@@ -40,11 +38,11 @@ int main(int argc, const char *argv[])
 
     // 重定向标准输出
     ofstream ofs(output);
-    if (BaseAST::mode == MODE_KOOPA)
+    if (string(mode) == MODE_KOOPA)
     {
         ofs << *ast;
     }
-    else if (BaseAST::mode == MODE_RISCV)
+    else if (string(mode) == MODE_RISCV)
     {
         ostringstream oss;
         oss << *ast;

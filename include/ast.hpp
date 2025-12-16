@@ -4,34 +4,15 @@
 #include <string>
 #include <iostream>
 #include <cassert>
+#include <deque>
 #include "defs.hpp"
-
-class AsOperand
-{
-public:
-    enum operant_type
-    {
-        REG,
-        IMM,
-    } type;
-    static int reg_count;
-    union operant
-    {
-        int reg_no;
-        int imm_value;
-    } value;
-    AsOperand();
-    AsOperand(const AsOperand &);
-    AsOperand(const operant_type &, const int &);
-    ~AsOperand();
-    friend std::ostream &operator<<(std::ostream &, const AsOperand &);
-};
+#include "operand.hpp"
+#include "symbol.hpp"
 
 // 所有 AST 的基类
 class BaseAST
 {
 public:
-    static std::string mode;
     virtual ~BaseAST() = default;
     virtual AsOperand Dump(std::ostream &) const = 0;
     friend std::ostream &operator<<(std::ostream &, const BaseAST &);
@@ -53,7 +34,7 @@ public:
     AsOperand Dump(std::ostream &) const override;
 };
 
-class TypeAST : public BaseAST
+class FuncTypeAST : public BaseAST
 {
 public:
     std::string type;
@@ -63,7 +44,7 @@ public:
 class BlockAST : public BaseAST
 {
 public:
-    std::unique_ptr<BaseAST> stmt;
+    std::deque<std::unique_ptr<BaseAST>> block_items;
     AsOperand Dump(std::ostream &) const override;
 };
 
@@ -91,7 +72,7 @@ public:
 class PrimaryExpAST : public BaseAST
 {
 public:
-    std::unique_ptr<BaseAST> exp_or_number;
+    std::unique_ptr<BaseAST> exp_or_lval_or_number;
     AsOperand Dump(std::ostream &) const override;
 };
 
@@ -189,5 +170,63 @@ public:
     std::unique_ptr<BaseAST> lor_exp;
     std::string lor_op;
     std::unique_ptr<BaseAST> land_exp;
+    AsOperand Dump(std::ostream &) const override;
+};
+
+class DeclAST : public BaseAST
+{
+public:
+    std::unique_ptr<BaseAST> const_decl;
+    AsOperand Dump(std::ostream &) const override;
+};
+
+class ConstDeclAST : public BaseAST
+{
+public:
+    std::unique_ptr<BaseAST> b_type;
+    std::deque<std::unique_ptr<BaseAST>> const_defs;
+    AsOperand Dump(std::ostream &) const override;
+};
+
+class BTypeAST : public BaseAST
+{
+public:
+    std::string type;
+    AsOperand Dump(std::ostream &) const override;
+};
+
+class ConstDefAST : public BaseAST
+{
+public:
+    std::string ident;
+    std::unique_ptr<BaseAST> const_init_val;
+    AsOperand Dump(std::ostream &) const override;
+};
+
+class ConstInitValAST : public BaseAST
+{
+public:
+    std::unique_ptr<BaseAST> const_exp;
+    AsOperand Dump(std::ostream &) const override;
+};
+
+class BlockItemAST : public BaseAST
+{
+public:
+    std::unique_ptr<BaseAST> decl_or_stmt;
+    AsOperand Dump(std::ostream &) const override;
+};
+
+class LValAST : public BaseAST
+{
+public:
+    std::string ident;
+    AsOperand Dump(std::ostream &) const override;
+};
+
+class ConstExpAST : public BaseAST
+{
+public:
+    std::unique_ptr<BaseAST> exp;
     AsOperand Dump(std::ostream &) const override;
 };

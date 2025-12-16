@@ -1,65 +1,18 @@
 #include "ast.hpp"
 
-int AsOperand::reg_count = 0;
-
-AsOperand::AsOperand()
-{
-    type = IMM;
-    value.imm_value = 0;
-}
-
-AsOperand::~AsOperand()
-{
-    // pass
-}
-
-AsOperand::AsOperand(const AsOperand &operant)
-{
-    type = operant.type;
-    value = operant.value;
-}
-
-AsOperand::AsOperand(const operant_type &t, const int &v = 0)
-{
-    type = t;
-    if (type == REG)
-    {
-        value.reg_no = reg_count++;
-    }
-    else if (type == IMM)
-    {
-        value.imm_value = v;
-    }
-}
-
-std::ostream &operator<<(std::ostream &os, const AsOperand &operant)
-{
-    if (operant.type == AsOperand::REG)
-    {
-        os << "%" << operant.value.reg_no;
-    }
-    else if (operant.type == AsOperand::IMM)
-    {
-        os << operant.value.imm_value;
-    }
-    return os;
-}
-
-std::string BaseAST::mode = MODE_KOOPA;
-
 std::ostream &operator<<(std::ostream &os, const BaseAST &ast)
 {
     ast.Dump(os);
     return os;
 }
 
-AsOperand CompUnitAST::Dump(std::ostream &os = std::cout) const
+AsOperand CompUnitAST::Dump(std::ostream &os) const
 {
     func_def->Dump(os);
     return AsOperand();
 }
 
-AsOperand FuncDefAST::Dump(std::ostream &os = std::cout) const
+AsOperand FuncDefAST::Dump(std::ostream &os) const
 {
     os << "fun @" << ident << "(): ";
     func_type->Dump(os);
@@ -69,7 +22,7 @@ AsOperand FuncDefAST::Dump(std::ostream &os = std::cout) const
     return AsOperand();
 }
 
-AsOperand TypeAST::Dump(std::ostream &os = std::cout) const
+AsOperand FuncTypeAST::Dump(std::ostream &os) const
 {
     if (type == "int")
     {
@@ -78,139 +31,175 @@ AsOperand TypeAST::Dump(std::ostream &os = std::cout) const
     return AsOperand();
 }
 
-AsOperand BlockAST::Dump(std::ostream &os = std::cout) const
+AsOperand BlockAST::Dump(std::ostream &os) const
 {
     os << "%entry:\n";
-    stmt->Dump(os);
+    for (size_t i = 0, len = block_items.size(); i < len; ++i)
+    {
+        block_items[i]->Dump(os);
+    }
     return AsOperand();
 }
 
-AsOperand StmtAST::Dump(std::ostream &os = std::cout) const
+AsOperand StmtAST::Dump(std::ostream &os) const
 {
     AsOperand operant = exp->Dump(os);
     os << "\tret " << operant << "\n";
     return AsOperand();
 }
 
-AsOperand ExpAST::Dump(std::ostream &os = std::cout) const
+AsOperand ExpAST::Dump(std::ostream &os) const
 {
     return lor_exp->Dump(os);
 }
 
-AsOperand NumberAST::Dump(std::ostream &os = std::cout) const
+AsOperand NumberAST::Dump(std::ostream &os) const
 {
     return AsOperand(AsOperand::IMM, number);
 }
 
-AsOperand PrimaryExpAST::Dump(std::ostream &os = std::cout) const
+AsOperand PrimaryExpAST::Dump(std::ostream &os) const
 {
-    return exp_or_number->Dump(os);
+    return exp_or_lval_or_number->Dump(os);
 }
 
-AsOperand UnaryExpAST::Dump(std::ostream &os = std::cout) const
+AsOperand UnaryExpAST::Dump(std::ostream &os) const
 {
+    AsOperand operand = primary_or_unary_exp->Dump(os);
     if (type == PRIMARY_EXP)
     {
-        return primary_or_unary_exp->Dump(os);
+        return operand;
     }
-    else if (type == UNARY_EXP)
+    else if (operand.IsReg())
     {
-        AsOperand operand = primary_or_unary_exp->Dump(os);
         AsOperand result = AsOperand(AsOperand::REG);
         switch (unary_op[0])
         {
         case '+':
             os << "\t" << result << " = add 0, " << operand << "\n";
             break;
-
         case '-':
             os << "\t" << result << " = sub 0, " << operand << "\n";
             break;
-
         case '!':
             os << "\t" << result << " = eq " << operand << ", 0\n";
             break;
-
         default:
             assert(false);
         }
         return result;
     }
+    else
+    {
+        switch (unary_op[0])
+        {
+        case '+':
+            return AsOperand(AsOperand::IMM, operand.ImmValue());
+        case '-':
+            return AsOperand(AsOperand::IMM, -operand.ImmValue());
+        case '!':
+            return AsOperand(AsOperand::IMM, !operand.ImmValue());
+        default:
+            assert(false);
+        }
+    }
     return AsOperand();
 }
 
-AsOperand MulExpAST::Dump(std::ostream &os = std::cout) const
+AsOperand MulExpAST::Dump(std::ostream &os) const
 {
     if (type == UNARY_EXP)
     {
         return unary_exp->Dump(os);
     }
-    else if (type == BINARY_EXP)
+    AsOperand left = mul_exp->Dump(os);
+    AsOperand right = unary_exp->Dump(os);
+    if (left.IsReg() || right.IsReg())
     {
-        AsOperand left = mul_exp->Dump(os);
-        AsOperand right = unary_exp->Dump(os);
         AsOperand result = AsOperand(AsOperand::REG);
         switch (mul_op[0])
         {
         case '*':
             os << "\t" << result << " = mul " << left << ", " << right << "\n";
             break;
-
         case '/':
             os << "\t" << result << " = div " << left << ", " << right << "\n";
             break;
-
         case '%':
             os << "\t" << result << " = mod " << left << ", " << right << "\n";
             break;
-
         default:
             assert(false);
         }
         return result;
     }
+    else
+    {
+        switch (mul_op[0])
+        {
+        case '*':
+            return AsOperand(AsOperand::IMM, left.ImmValue() * right.ImmValue());
+        case '/':
+            return AsOperand(AsOperand::IMM, left.ImmValue() / right.ImmValue());
+        case '%':
+            return AsOperand(AsOperand::IMM, left.ImmValue() % right.ImmValue());
+        default:
+            assert(false);
+        }
+    }
     return AsOperand();
 }
 
-AsOperand AddExpAST::Dump(std::ostream &os = std::cout) const
+AsOperand AddExpAST::Dump(std::ostream &os) const
 {
     if (type == MUL_EXP)
     {
         return mul_exp->Dump(os);
     }
-    else if (type == BINARY_EXP)
+    AsOperand left = add_exp->Dump(os);
+    AsOperand right = mul_exp->Dump(os);
+    if (left.IsReg() || right.IsReg())
     {
-        AsOperand left = add_exp->Dump(os);
-        AsOperand right = mul_exp->Dump(os);
         AsOperand result = AsOperand(AsOperand::REG);
         switch (add_op[0])
         {
         case '+':
             os << "\t" << result << " = add " << left << ", " << right << "\n";
             break;
-
         case '-':
             os << "\t" << result << " = sub " << left << ", " << right << "\n";
             break;
-
         default:
             assert(false);
         }
         return result;
     }
+    else
+    {
+        switch (add_op[0])
+        {
+        case '+':
+            return AsOperand(AsOperand::IMM, left.ImmValue() + right.ImmValue());
+        case '-':
+            return AsOperand(AsOperand::IMM, left.ImmValue() - right.ImmValue());
+            break;
+        default:
+            assert(false);
+        }
+    }
     return AsOperand();
 }
 
-AsOperand RelExpAST::Dump(std::ostream &os = std::cout) const
+AsOperand RelExpAST::Dump(std::ostream &os) const
 {
     if (type == ADD_EXP)
     {
         return add_exp->Dump(os);
     }
-    else if (type == BINARY_EXP)
+    AsOperand left = rel_exp->Dump(os);
+    AsOperand right = add_exp->Dump(os);
+    if (left.IsReg() || right.IsReg())
     {
-        AsOperand left = rel_exp->Dump(os);
-        AsOperand right = add_exp->Dump(os);
         AsOperand result = AsOperand(AsOperand::REG);
         if (rel_op == "<")
         {
@@ -234,19 +223,42 @@ AsOperand RelExpAST::Dump(std::ostream &os = std::cout) const
         }
         return result;
     }
+    else
+    {
+        if (rel_op == "<")
+        {
+            return AsOperand(AsOperand::IMM, left.ImmValue() < right.ImmValue());
+        }
+        else if (rel_op == ">")
+        {
+            return AsOperand(AsOperand::IMM, left.ImmValue() > right.ImmValue());
+        }
+        else if (rel_op == "<=")
+        {
+            return AsOperand(AsOperand::IMM, left.ImmValue() <= right.ImmValue());
+        }
+        else if (rel_op == ">=")
+        {
+            return AsOperand(AsOperand::IMM, left.ImmValue() >= right.ImmValue());
+        }
+        else
+        {
+            assert(false);
+        }
+    }
     return AsOperand();
 }
 
-AsOperand EqExpAST::Dump(std::ostream &os = std::cout) const
+AsOperand EqExpAST::Dump(std::ostream &os) const
 {
     if (type == REL_EXP)
     {
         return rel_exp->Dump(os);
     }
-    else if (type == BINARY_EXP)
+    AsOperand left = eq_exp->Dump(os);
+    AsOperand right = rel_exp->Dump(os);
+    if (left.IsReg() || right.IsReg())
     {
-        AsOperand left = eq_exp->Dump(os);
-        AsOperand right = rel_exp->Dump(os);
         AsOperand result = AsOperand(AsOperand::REG);
         if (eq_op == "==")
         {
@@ -262,19 +274,34 @@ AsOperand EqExpAST::Dump(std::ostream &os = std::cout) const
         }
         return result;
     }
+    else
+    {
+        if (eq_op == "==")
+        {
+            return AsOperand(AsOperand::IMM, left.ImmValue() == right.ImmValue());
+        }
+        else if (eq_op == "!=")
+        {
+            return AsOperand(AsOperand::IMM, left.ImmValue() != right.ImmValue());
+        }
+        else
+        {
+            assert(false);
+        }
+    }
     return AsOperand();
 }
 
-AsOperand LAndExpAST::Dump(std::ostream &os = std::cout) const
+AsOperand LAndExpAST::Dump(std::ostream &os) const
 {
     if (type == EQ_EXP)
     {
         return eq_exp->Dump(os);
     }
-    else if (type == BINARY_EXP)
+    AsOperand left = land_exp->Dump(os);
+    AsOperand right = eq_exp->Dump(os);
+    if (left.IsReg() || right.IsReg())
     {
-        AsOperand left = land_exp->Dump(os);
-        AsOperand right = eq_exp->Dump(os);
         AsOperand bool_left = AsOperand(AsOperand::REG);
         AsOperand bool_right = AsOperand(AsOperand::REG);
         AsOperand result = AsOperand(AsOperand::REG);
@@ -283,24 +310,86 @@ AsOperand LAndExpAST::Dump(std::ostream &os = std::cout) const
         os << "\t" << result << " = and " << bool_left << ", " << bool_right << "\n";
         return result;
     }
+    else
+    {
+        return AsOperand(AsOperand::IMM, left.ImmValue() && right.ImmValue());
+    }
     return AsOperand();
 }
 
-AsOperand LOrExpAST::Dump(std::ostream &os = std::cout) const
+AsOperand LOrExpAST::Dump(std::ostream &os) const
 {
     if (type == LAND_EXP)
     {
         return land_exp->Dump(os);
     }
-    else if (type == BINARY_EXP)
+    AsOperand left = lor_exp->Dump(os);
+    AsOperand right = land_exp->Dump(os);
+    if (left.IsReg() || right.IsReg())
     {
-        AsOperand left = lor_exp->Dump(os);
-        AsOperand right = land_exp->Dump(os);
         AsOperand lr_or = AsOperand(AsOperand::REG);
         AsOperand result = AsOperand(AsOperand::REG);
         os << "\t" << lr_or << " = or " << left << ", " << right << "\n";
         os << "\t" << result << " = ne " << lr_or << ", 0\n";
         return result;
     }
+    else
+    {
+        return AsOperand(AsOperand::IMM, left.ImmValue() || right.ImmValue());
+    }
     return AsOperand();
+}
+
+AsOperand DeclAST::Dump(std::ostream &os) const
+{
+    const_decl->Dump(os);
+    return AsOperand();
+}
+
+AsOperand ConstDeclAST::Dump(std::ostream &os) const
+{
+    for (size_t i = 0, len = const_defs.size(); i < len; ++i)
+    {
+        AsOperand const_value = const_defs[i]->Dump(os);
+    }
+    return AsOperand();
+}
+
+AsOperand BTypeAST::Dump(std::ostream &os) const
+{
+    os << "i32";
+    return AsOperand();
+}
+
+AsOperand ConstDefAST::Dump(std::ostream &os) const
+{
+    AsOperand const_val = const_init_val->Dump(os);
+    assert(!symbol_table->record(ident, Symbol(Symbol::LVAL, const_val.ImmValue())));
+    return AsOperand();
+}
+
+AsOperand ConstInitValAST::Dump(std::ostream &os) const
+{
+    return const_exp->Dump(os);
+}
+
+AsOperand BlockItemAST::Dump(std::ostream &os) const
+{
+    return decl_or_stmt->Dump(os);
+}
+
+AsOperand LValAST::Dump(std::ostream &os) const
+{
+    assert(symbol_table->find(ident));
+    Symbol symbol = symbol_table->get(ident);
+    if (symbol.type == Symbol::LVAL)
+    {
+        return AsOperand(AsOperand::IMM, symbol.val);
+    }
+    return AsOperand();
+}
+
+AsOperand ConstExpAST::Dump(std::ostream &os) const
+{
+    return exp->Dump(os);
 }
