@@ -8,12 +8,20 @@ std::ostream &operator<<(std::ostream &os, const BaseAST &ast)
 
 AsOperand CompUnitAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "CompUnitAST Dump\n";
+#endif
+
     func_def->Dump(os);
     return AsOperand();
 }
 
 AsOperand FuncDefAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "FuncDef Dump\n";
+#endif
+
     os << "fun @" << ident << "(): ";
     func_type->Dump(os);
     os << " {\n";
@@ -24,6 +32,10 @@ AsOperand FuncDefAST::Dump(std::ostream &os) const
 
 AsOperand FuncTypeAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "FuncType Dump\n";
+#endif
+
     if (type == "int")
     {
         os << "i32";
@@ -33,6 +45,10 @@ AsOperand FuncTypeAST::Dump(std::ostream &os) const
 
 AsOperand BlockAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "Block Dump\n";
+#endif
+
     os << "%entry:\n";
     for (size_t i = 0, len = block_items.size(); i < len; ++i)
     {
@@ -43,28 +59,57 @@ AsOperand BlockAST::Dump(std::ostream &os) const
 
 AsOperand StmtAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "Stmt Dump\n";
+#endif
+
     AsOperand operant = exp->Dump(os);
-    os << "\tret " << operant << "\n";
+    if (type == RETURN)
+    {
+        os << "\tret " << operant << "\n";
+    }
+    else if (type == LVAL)
+    {
+        std::string val_name = ((LValAST*)(lval.get()))->ident;
+        assert(symbol_table->find(val_name));
+        os << "\tstore " << operant << ", @" << val_name << "\n";
+    }
     return AsOperand();
 }
 
 AsOperand ExpAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "Exp Dump\n";
+#endif
+
     return lor_exp->Dump(os);
 }
 
 AsOperand NumberAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "Number Dump\n";
+#endif
+
     return AsOperand(AsOperand::IMM, number);
 }
 
 AsOperand PrimaryExpAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "PrimaryExp Dump\n";
+#endif
+
     return exp_or_lval_or_number->Dump(os);
 }
 
 AsOperand UnaryExpAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "UnaryExp Dump\n";
+#endif
+
     AsOperand operand = primary_or_unary_exp->Dump(os);
     if (type == PRIMARY_EXP)
     {
@@ -108,6 +153,10 @@ AsOperand UnaryExpAST::Dump(std::ostream &os) const
 
 AsOperand MulExpAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "MulExp Dump\n";
+#endif
+
     if (type == UNARY_EXP)
     {
         return unary_exp->Dump(os);
@@ -152,6 +201,10 @@ AsOperand MulExpAST::Dump(std::ostream &os) const
 
 AsOperand AddExpAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "AddExp Dump\n";
+#endif
+
     if (type == MUL_EXP)
     {
         return mul_exp->Dump(os);
@@ -192,6 +245,10 @@ AsOperand AddExpAST::Dump(std::ostream &os) const
 
 AsOperand RelExpAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "RelExp Dump\n";
+#endif
+
     if (type == ADD_EXP)
     {
         return add_exp->Dump(os);
@@ -251,6 +308,10 @@ AsOperand RelExpAST::Dump(std::ostream &os) const
 
 AsOperand EqExpAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "EqExp Dump\n";
+#endif
+
     if (type == REL_EXP)
     {
         return rel_exp->Dump(os);
@@ -294,6 +355,10 @@ AsOperand EqExpAST::Dump(std::ostream &os) const
 
 AsOperand LAndExpAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "LAndExp Dump\n";
+#endif
+
     if (type == EQ_EXP)
     {
         return eq_exp->Dump(os);
@@ -319,6 +384,10 @@ AsOperand LAndExpAST::Dump(std::ostream &os) const
 
 AsOperand LOrExpAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "LOrExp Dump\n";
+#endif
+
     if (type == LAND_EXP)
     {
         return land_exp->Dump(os);
@@ -342,12 +411,20 @@ AsOperand LOrExpAST::Dump(std::ostream &os) const
 
 AsOperand DeclAST::Dump(std::ostream &os) const
 {
-    const_decl->Dump(os);
+#ifdef DEBUG
+    debug << "Decl Dump\n";
+#endif
+
+    const_or_var_decl->Dump(os);
     return AsOperand();
 }
 
 AsOperand ConstDeclAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "ConstDecl Dump\n";
+#endif
+
     for (size_t i = 0, len = const_defs.size(); i < len; ++i)
     {
         AsOperand const_value = const_defs[i]->Dump(os);
@@ -357,39 +434,115 @@ AsOperand ConstDeclAST::Dump(std::ostream &os) const
 
 AsOperand BTypeAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "BType Dump\n";
+#endif
+
     os << "i32";
     return AsOperand();
 }
 
 AsOperand ConstDefAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "ConstDef Dump\n";
+#endif
+
     AsOperand const_val = const_init_val->Dump(os);
-    assert(!symbol_table->record(ident, Symbol(Symbol::LVAL, const_val.ImmValue())));
+    assert(!symbol_table->record(ident, Symbol(Symbol::CONST, const_val.ImmValue())));
     return AsOperand();
 }
 
 AsOperand ConstInitValAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "ConstInitVal Dump\n";
+#endif
+
     return const_exp->Dump(os);
 }
 
 AsOperand BlockItemAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "BlockItem Dump\n";
+#endif
+
     return decl_or_stmt->Dump(os);
 }
 
 AsOperand LValAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "LVal Dump\n";
+#endif
+
     assert(symbol_table->find(ident));
     Symbol symbol = symbol_table->get(ident);
-    if (symbol.type == Symbol::LVAL)
+    if (symbol.type == Symbol::CONST)
     {
         return AsOperand(AsOperand::IMM, symbol.val);
+    } else if (symbol.type == Symbol::VAR)
+    {
+        AsOperand var_reg = AsOperand(AsOperand::REG);
+        os << "\t" << var_reg << " = load @" << ident << "\n";
+        return var_reg;
     }
     return AsOperand();
 }
 
 AsOperand ConstExpAST::Dump(std::ostream &os) const
 {
+#ifdef DEBUG
+    debug << "ConstExp Dump\n";
+#endif
+
+    return exp->Dump(os);
+}
+
+AsOperand VarDeclAST::Dump(std::ostream &os) const
+{
+#ifdef DEBUG
+    debug << "VarDecl Dump\n";
+#endif
+
+    for(size_t i = 0, len = var_defs.size(); i < len; ++i)
+    {
+        ((VarDefAST*)(var_defs[i].get()))->DumpWithType(os, *b_type);
+    }
+    return AsOperand();
+}
+
+AsOperand VarDefAST::Dump(std::ostream &os) const
+{
+#ifdef DEBUG
+    debug << "VarDef Dump\n";
+#endif
+
+    if (type == INITVAL)
+    {
+        AsOperand val = init_val->Dump(os);
+        os << "\tstore " << val << ", @" << ident << '\n';
+    }
+    assert(!symbol_table->record(ident, Symbol(Symbol::VAR)));
+    return AsOperand();
+}
+
+AsOperand VarDefAST::DumpWithType(std::ostream &os, const BaseAST &type) const
+{
+#ifdef DEBUG
+    debug << "VarDef DumpWithType\n";
+#endif
+
+    os << "\t@" << ident << " = alloc " << type << "\n";
+    return Dump(os);
+}
+
+AsOperand InitValAST::Dump(std::ostream &os) const
+{
+#ifdef DEBUG
+    debug << "InitVal Dump\n";
+#endif
+
     return exp->Dump(os);
 }

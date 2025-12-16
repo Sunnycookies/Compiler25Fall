@@ -8,7 +8,8 @@ class Symbol
 public:
     enum symbol_type
     {
-        LVAL,
+        CONST,
+        VAR,
     } type;
     int val;
     Symbol() = default;

@@ -37,8 +37,8 @@ using namespace std;
 
 %type <ast_val> FuncDef FuncType Block BlockItem Stmt 
 %type <ast_val> Exp Number LVal PrimaryExp UnaryExp MulExp AddExp RelExp EqExp LAndExp LOrExp ConstExp
-%type <ast_val> Decl ConstDecl BType ConstDef ConstInitVal
-%type <deque_val> AnyBlockItem MoreConstDef
+%type <ast_val> Decl ConstDecl BType ConstDef ConstInitVal VarDecl VarDef InitVal
+%type <deque_val> AnyBlockItem MoreConstDef MoreVarDef
 
 %%
 
@@ -103,7 +103,15 @@ AnyBlockItem
 Stmt
   : RETURN Exp ';' {
     auto ast = new StmtAST();
+    ast->type = StmtAST::RETURN;
     ast->exp = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  | LVal '=' Exp ';' {
+    auto ast = new StmtAST();
+    ast->type = StmtAST::LVAL;
+    ast->lval = unique_ptr<BaseAST>($1);
+    ast->exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   ;
@@ -286,7 +294,12 @@ ConstExp
 Decl
   : ConstDecl {
     auto ast = new DeclAST();
-    ast->const_decl = unique_ptr<BaseAST>($1);
+    ast->const_or_var_decl = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | VarDecl {
+    auto ast = new DeclAST();
+    ast->const_or_var_decl = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;
@@ -333,6 +346,52 @@ ConstInitVal
   : ConstExp {
     auto ast = new ConstInitValAST();
     ast->const_exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  ;
+
+VarDecl
+  : BType VarDef MoreVarDef ';' {
+    auto ast = new VarDeclAST();
+    ast->b_type = unique_ptr<BaseAST>($1);
+    deque<unique_ptr<BaseAST>> *var_defs = $3;
+    var_defs->push_front(unique_ptr<BaseAST>($2));
+    ast->var_defs = move(*var_defs);
+    $$ = ast;
+  }
+  ;
+
+VarDef
+  : IDENT {
+    auto ast = new VarDefAST();
+    ast->type = VarDefAST::IDENT;
+    ast->ident = *unique_ptr<string>($1);
+    $$ = ast;
+  }
+  | IDENT '=' InitVal {
+    auto ast = new VarDefAST();
+    ast->type = VarDefAST::INITVAL;
+    ast->ident = *unique_ptr<string>($1);
+    ast->init_val = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+MoreVarDef
+  : ',' VarDef MoreVarDef {
+    deque<unique_ptr<BaseAST>> *var_defs = $3;
+    var_defs->push_front(unique_ptr<BaseAST>($2));
+    $$ = var_defs;
+  }
+  | {
+    $$ = new deque<unique_ptr<BaseAST>>;
+  }
+  ;
+
+InitVal
+  : Exp {
+    auto ast = new InitValAST();
+    ast->exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;

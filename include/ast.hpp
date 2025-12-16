@@ -51,6 +51,12 @@ public:
 class StmtAST : public BaseAST
 {
 public:
+    enum stmt_type
+    {
+        LVAL,
+        RETURN,
+    } type;
+    std::unique_ptr<BaseAST> lval;
     std::unique_ptr<BaseAST> exp;
     AsOperand Dump(std::ostream &) const override;
 };
@@ -176,7 +182,7 @@ public:
 class DeclAST : public BaseAST
 {
 public:
-    std::unique_ptr<BaseAST> const_decl;
+    std::unique_ptr<BaseAST> const_or_var_decl;
     AsOperand Dump(std::ostream &) const override;
 };
 
@@ -225,6 +231,35 @@ public:
 };
 
 class ConstExpAST : public BaseAST
+{
+public:
+    std::unique_ptr<BaseAST> exp;
+    AsOperand Dump(std::ostream &) const override;
+};
+
+class VarDeclAST : public BaseAST
+{
+public:
+    std::unique_ptr<BaseAST> b_type;
+    std::deque<std::unique_ptr<BaseAST>> var_defs;
+    AsOperand Dump(std::ostream &) const override;
+};
+
+class VarDefAST : public BaseAST
+{
+public:
+    enum var_def_type
+    {
+        IDENT,
+        INITVAL,
+    } type;
+    std::string ident;
+    std::unique_ptr<BaseAST> init_val;
+    AsOperand Dump(std::ostream &) const override;
+    AsOperand DumpWithType(std::ostream &, const BaseAST &) const;
+};
+
+class InitValAST : public BaseAST
 {
 public:
     std::unique_ptr<BaseAST> exp;
