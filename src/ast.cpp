@@ -6,17 +6,17 @@ std::ostream &operator<<(std::ostream &os, const BaseAST &ast)
     return os;
 }
 
-AsOperand CompUnitAST::Dump(std::ostream &os) const
+Operand CompUnitAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "CompUnitAST Dump\n";
 #endif
 
     func_def->Dump(os);
-    return AsOperand();
+    return Operand();
 }
 
-AsOperand FuncDefAST::Dump(std::ostream &os) const
+Operand FuncDefAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "FuncDef Dump\n";
@@ -27,10 +27,10 @@ AsOperand FuncDefAST::Dump(std::ostream &os) const
     os << " {\n";
     block->Dump(os);
     os << "}\n";
-    return AsOperand();
+    return Operand();
 }
 
-AsOperand FuncTypeAST::Dump(std::ostream &os) const
+Operand FuncTypeAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "FuncType Dump\n";
@@ -40,10 +40,10 @@ AsOperand FuncTypeAST::Dump(std::ostream &os) const
     {
         os << "i32";
     }
-    return AsOperand();
+    return Operand();
 }
 
-AsOperand BlockAST::Dump(std::ostream &os) const
+Operand BlockAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "Block Dump\n";
@@ -54,30 +54,30 @@ AsOperand BlockAST::Dump(std::ostream &os) const
     {
         block_items[i]->Dump(os);
     }
-    return AsOperand();
+    return Operand();
 }
 
-AsOperand StmtAST::Dump(std::ostream &os) const
+Operand StmtAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "Stmt Dump\n";
 #endif
 
-    AsOperand operant = exp->Dump(os);
+    Operand operand = exp->Dump(os);
     if (type == RETURN)
     {
-        os << "\tret " << operant << "\n";
+        os << "\tret " << operand << "\n";
     }
     else if (type == LVAL)
     {
         std::string val_name = ((LValAST*)(lval.get()))->ident;
         assert(symbol_table->find(val_name));
-        os << "\tstore " << operant << ", @" << val_name << "\n";
+        os << "\tstore " << operand << ", @" << val_name << "\n";
     }
-    return AsOperand();
+    return Operand();
 }
 
-AsOperand ExpAST::Dump(std::ostream &os) const
+Operand ExpAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "Exp Dump\n";
@@ -86,16 +86,16 @@ AsOperand ExpAST::Dump(std::ostream &os) const
     return lor_exp->Dump(os);
 }
 
-AsOperand NumberAST::Dump(std::ostream &os) const
+Operand NumberAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "Number Dump\n";
 #endif
 
-    return AsOperand(AsOperand::IMM, number);
+    return Operand(Operand::IMM, number);
 }
 
-AsOperand PrimaryExpAST::Dump(std::ostream &os) const
+Operand PrimaryExpAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "PrimaryExp Dump\n";
@@ -104,20 +104,20 @@ AsOperand PrimaryExpAST::Dump(std::ostream &os) const
     return exp_or_lval_or_number->Dump(os);
 }
 
-AsOperand UnaryExpAST::Dump(std::ostream &os) const
+Operand UnaryExpAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "UnaryExp Dump\n";
 #endif
 
-    AsOperand operand = primary_or_unary_exp->Dump(os);
+    Operand operand = primary_or_unary_exp->Dump(os);
     if (type == PRIMARY_EXP)
     {
         return operand;
     }
     else if (operand.IsReg())
     {
-        AsOperand result = AsOperand(AsOperand::REG);
+        Operand result = Operand(Operand::REG);
         switch (unary_op[0])
         {
         case '+':
@@ -139,19 +139,19 @@ AsOperand UnaryExpAST::Dump(std::ostream &os) const
         switch (unary_op[0])
         {
         case '+':
-            return AsOperand(AsOperand::IMM, operand.ImmValue());
+            return Operand(Operand::IMM, operand.ImmValue());
         case '-':
-            return AsOperand(AsOperand::IMM, -operand.ImmValue());
+            return Operand(Operand::IMM, -operand.ImmValue());
         case '!':
-            return AsOperand(AsOperand::IMM, !operand.ImmValue());
+            return Operand(Operand::IMM, !operand.ImmValue());
         default:
             assert(false);
         }
     }
-    return AsOperand();
+    return Operand();
 }
 
-AsOperand MulExpAST::Dump(std::ostream &os) const
+Operand MulExpAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "MulExp Dump\n";
@@ -161,11 +161,11 @@ AsOperand MulExpAST::Dump(std::ostream &os) const
     {
         return unary_exp->Dump(os);
     }
-    AsOperand left = mul_exp->Dump(os);
-    AsOperand right = unary_exp->Dump(os);
+    Operand left = mul_exp->Dump(os);
+    Operand right = unary_exp->Dump(os);
     if (left.IsReg() || right.IsReg())
     {
-        AsOperand result = AsOperand(AsOperand::REG);
+        Operand result = Operand(Operand::REG);
         switch (mul_op[0])
         {
         case '*':
@@ -187,19 +187,19 @@ AsOperand MulExpAST::Dump(std::ostream &os) const
         switch (mul_op[0])
         {
         case '*':
-            return AsOperand(AsOperand::IMM, left.ImmValue() * right.ImmValue());
+            return Operand(Operand::IMM, left.ImmValue() * right.ImmValue());
         case '/':
-            return AsOperand(AsOperand::IMM, left.ImmValue() / right.ImmValue());
+            return Operand(Operand::IMM, left.ImmValue() / right.ImmValue());
         case '%':
-            return AsOperand(AsOperand::IMM, left.ImmValue() % right.ImmValue());
+            return Operand(Operand::IMM, left.ImmValue() % right.ImmValue());
         default:
             assert(false);
         }
     }
-    return AsOperand();
+    return Operand();
 }
 
-AsOperand AddExpAST::Dump(std::ostream &os) const
+Operand AddExpAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "AddExp Dump\n";
@@ -209,11 +209,11 @@ AsOperand AddExpAST::Dump(std::ostream &os) const
     {
         return mul_exp->Dump(os);
     }
-    AsOperand left = add_exp->Dump(os);
-    AsOperand right = mul_exp->Dump(os);
+    Operand left = add_exp->Dump(os);
+    Operand right = mul_exp->Dump(os);
     if (left.IsReg() || right.IsReg())
     {
-        AsOperand result = AsOperand(AsOperand::REG);
+        Operand result = Operand(Operand::REG);
         switch (add_op[0])
         {
         case '+':
@@ -232,18 +232,18 @@ AsOperand AddExpAST::Dump(std::ostream &os) const
         switch (add_op[0])
         {
         case '+':
-            return AsOperand(AsOperand::IMM, left.ImmValue() + right.ImmValue());
+            return Operand(Operand::IMM, left.ImmValue() + right.ImmValue());
         case '-':
-            return AsOperand(AsOperand::IMM, left.ImmValue() - right.ImmValue());
+            return Operand(Operand::IMM, left.ImmValue() - right.ImmValue());
             break;
         default:
             assert(false);
         }
     }
-    return AsOperand();
+    return Operand();
 }
 
-AsOperand RelExpAST::Dump(std::ostream &os) const
+Operand RelExpAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "RelExp Dump\n";
@@ -253,11 +253,11 @@ AsOperand RelExpAST::Dump(std::ostream &os) const
     {
         return add_exp->Dump(os);
     }
-    AsOperand left = rel_exp->Dump(os);
-    AsOperand right = add_exp->Dump(os);
+    Operand left = rel_exp->Dump(os);
+    Operand right = add_exp->Dump(os);
     if (left.IsReg() || right.IsReg())
     {
-        AsOperand result = AsOperand(AsOperand::REG);
+        Operand result = Operand(Operand::REG);
         if (rel_op == "<")
         {
             os << "\t" << result << " = lt " << left << ", " << right << "\n";
@@ -284,29 +284,29 @@ AsOperand RelExpAST::Dump(std::ostream &os) const
     {
         if (rel_op == "<")
         {
-            return AsOperand(AsOperand::IMM, left.ImmValue() < right.ImmValue());
+            return Operand(Operand::IMM, left.ImmValue() < right.ImmValue());
         }
         else if (rel_op == ">")
         {
-            return AsOperand(AsOperand::IMM, left.ImmValue() > right.ImmValue());
+            return Operand(Operand::IMM, left.ImmValue() > right.ImmValue());
         }
         else if (rel_op == "<=")
         {
-            return AsOperand(AsOperand::IMM, left.ImmValue() <= right.ImmValue());
+            return Operand(Operand::IMM, left.ImmValue() <= right.ImmValue());
         }
         else if (rel_op == ">=")
         {
-            return AsOperand(AsOperand::IMM, left.ImmValue() >= right.ImmValue());
+            return Operand(Operand::IMM, left.ImmValue() >= right.ImmValue());
         }
         else
         {
             assert(false);
         }
     }
-    return AsOperand();
+    return Operand();
 }
 
-AsOperand EqExpAST::Dump(std::ostream &os) const
+Operand EqExpAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "EqExp Dump\n";
@@ -316,11 +316,11 @@ AsOperand EqExpAST::Dump(std::ostream &os) const
     {
         return rel_exp->Dump(os);
     }
-    AsOperand left = eq_exp->Dump(os);
-    AsOperand right = rel_exp->Dump(os);
+    Operand left = eq_exp->Dump(os);
+    Operand right = rel_exp->Dump(os);
     if (left.IsReg() || right.IsReg())
     {
-        AsOperand result = AsOperand(AsOperand::REG);
+        Operand result = Operand(Operand::REG);
         if (eq_op == "==")
         {
             os << "\t" << result << " = eq " << left << ", " << right << "\n";
@@ -339,21 +339,21 @@ AsOperand EqExpAST::Dump(std::ostream &os) const
     {
         if (eq_op == "==")
         {
-            return AsOperand(AsOperand::IMM, left.ImmValue() == right.ImmValue());
+            return Operand(Operand::IMM, left.ImmValue() == right.ImmValue());
         }
         else if (eq_op == "!=")
         {
-            return AsOperand(AsOperand::IMM, left.ImmValue() != right.ImmValue());
+            return Operand(Operand::IMM, left.ImmValue() != right.ImmValue());
         }
         else
         {
             assert(false);
         }
     }
-    return AsOperand();
+    return Operand();
 }
 
-AsOperand LAndExpAST::Dump(std::ostream &os) const
+Operand LAndExpAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "LAndExp Dump\n";
@@ -363,13 +363,13 @@ AsOperand LAndExpAST::Dump(std::ostream &os) const
     {
         return eq_exp->Dump(os);
     }
-    AsOperand left = land_exp->Dump(os);
-    AsOperand right = eq_exp->Dump(os);
+    Operand left = land_exp->Dump(os);
+    Operand right = eq_exp->Dump(os);
     if (left.IsReg() || right.IsReg())
     {
-        AsOperand bool_left = AsOperand(AsOperand::REG);
-        AsOperand bool_right = AsOperand(AsOperand::REG);
-        AsOperand result = AsOperand(AsOperand::REG);
+        Operand bool_left = Operand(Operand::REG);
+        Operand bool_right = Operand(Operand::REG);
+        Operand result = Operand(Operand::REG);
         os << "\t" << bool_left << " = ne " << left << ", 0\n";
         os << "\t" << bool_right << " = ne " << right << ", 0\n";
         os << "\t" << result << " = and " << bool_left << ", " << bool_right << "\n";
@@ -377,12 +377,12 @@ AsOperand LAndExpAST::Dump(std::ostream &os) const
     }
     else
     {
-        return AsOperand(AsOperand::IMM, left.ImmValue() && right.ImmValue());
+        return Operand(Operand::IMM, left.ImmValue() && right.ImmValue());
     }
-    return AsOperand();
+    return Operand();
 }
 
-AsOperand LOrExpAST::Dump(std::ostream &os) const
+Operand LOrExpAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "LOrExp Dump\n";
@@ -392,34 +392,34 @@ AsOperand LOrExpAST::Dump(std::ostream &os) const
     {
         return land_exp->Dump(os);
     }
-    AsOperand left = lor_exp->Dump(os);
-    AsOperand right = land_exp->Dump(os);
+    Operand left = lor_exp->Dump(os);
+    Operand right = land_exp->Dump(os);
     if (left.IsReg() || right.IsReg())
     {
-        AsOperand lr_or = AsOperand(AsOperand::REG);
-        AsOperand result = AsOperand(AsOperand::REG);
+        Operand lr_or = Operand(Operand::REG);
+        Operand result = Operand(Operand::REG);
         os << "\t" << lr_or << " = or " << left << ", " << right << "\n";
         os << "\t" << result << " = ne " << lr_or << ", 0\n";
         return result;
     }
     else
     {
-        return AsOperand(AsOperand::IMM, left.ImmValue() || right.ImmValue());
+        return Operand(Operand::IMM, left.ImmValue() || right.ImmValue());
     }
-    return AsOperand();
+    return Operand();
 }
 
-AsOperand DeclAST::Dump(std::ostream &os) const
+Operand DeclAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "Decl Dump\n";
 #endif
 
     const_or_var_decl->Dump(os);
-    return AsOperand();
+    return Operand();
 }
 
-AsOperand ConstDeclAST::Dump(std::ostream &os) const
+Operand ConstDeclAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "ConstDecl Dump\n";
@@ -427,33 +427,33 @@ AsOperand ConstDeclAST::Dump(std::ostream &os) const
 
     for (size_t i = 0, len = const_defs.size(); i < len; ++i)
     {
-        AsOperand const_value = const_defs[i]->Dump(os);
+        Operand const_value = const_defs[i]->Dump(os);
     }
-    return AsOperand();
+    return Operand();
 }
 
-AsOperand BTypeAST::Dump(std::ostream &os) const
+Operand BTypeAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "BType Dump\n";
 #endif
 
     os << "i32";
-    return AsOperand();
+    return Operand();
 }
 
-AsOperand ConstDefAST::Dump(std::ostream &os) const
+Operand ConstDefAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "ConstDef Dump\n";
 #endif
 
-    AsOperand const_val = const_init_val->Dump(os);
+    Operand const_val = const_init_val->Dump(os);
     assert(!symbol_table->record(ident, Symbol(Symbol::CONST, const_val.ImmValue())));
-    return AsOperand();
+    return Operand();
 }
 
-AsOperand ConstInitValAST::Dump(std::ostream &os) const
+Operand ConstInitValAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "ConstInitVal Dump\n";
@@ -462,7 +462,7 @@ AsOperand ConstInitValAST::Dump(std::ostream &os) const
     return const_exp->Dump(os);
 }
 
-AsOperand BlockItemAST::Dump(std::ostream &os) const
+Operand BlockItemAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "BlockItem Dump\n";
@@ -471,7 +471,7 @@ AsOperand BlockItemAST::Dump(std::ostream &os) const
     return decl_or_stmt->Dump(os);
 }
 
-AsOperand LValAST::Dump(std::ostream &os) const
+Operand LValAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "LVal Dump\n";
@@ -481,17 +481,17 @@ AsOperand LValAST::Dump(std::ostream &os) const
     Symbol symbol = symbol_table->get(ident);
     if (symbol.type == Symbol::CONST)
     {
-        return AsOperand(AsOperand::IMM, symbol.val);
+        return Operand(Operand::IMM, symbol.val);
     } else if (symbol.type == Symbol::VAR)
     {
-        AsOperand var_reg = AsOperand(AsOperand::REG);
+        Operand var_reg = Operand(Operand::REG);
         os << "\t" << var_reg << " = load @" << ident << "\n";
         return var_reg;
     }
-    return AsOperand();
+    return Operand();
 }
 
-AsOperand ConstExpAST::Dump(std::ostream &os) const
+Operand ConstExpAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "ConstExp Dump\n";
@@ -500,7 +500,7 @@ AsOperand ConstExpAST::Dump(std::ostream &os) const
     return exp->Dump(os);
 }
 
-AsOperand VarDeclAST::Dump(std::ostream &os) const
+Operand VarDeclAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "VarDecl Dump\n";
@@ -510,10 +510,10 @@ AsOperand VarDeclAST::Dump(std::ostream &os) const
     {
         ((VarDefAST*)(var_defs[i].get()))->DumpWithType(os, *b_type);
     }
-    return AsOperand();
+    return Operand();
 }
 
-AsOperand VarDefAST::Dump(std::ostream &os) const
+Operand VarDefAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "VarDef Dump\n";
@@ -521,14 +521,14 @@ AsOperand VarDefAST::Dump(std::ostream &os) const
 
     if (type == INITVAL)
     {
-        AsOperand val = init_val->Dump(os);
+        Operand val = init_val->Dump(os);
         os << "\tstore " << val << ", @" << ident << '\n';
     }
     assert(!symbol_table->record(ident, Symbol(Symbol::VAR)));
-    return AsOperand();
+    return Operand();
 }
 
-AsOperand VarDefAST::DumpWithType(std::ostream &os, const BaseAST &type) const
+Operand VarDefAST::DumpWithType(std::ostream &os, const BaseAST &type) const
 {
 #ifdef DEBUG
     debug << "VarDef DumpWithType\n";
@@ -538,7 +538,7 @@ AsOperand VarDefAST::DumpWithType(std::ostream &os, const BaseAST &type) const
     return Dump(os);
 }
 
-AsOperand InitValAST::Dump(std::ostream &os) const
+Operand InitValAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "InitVal Dump\n";

@@ -1,25 +1,25 @@
 #include "operand.hpp"
 
-int AsOperand::reg_count = 0;
+int Operand::reg_count = 0;
 
-AsOperand::AsOperand()
+Operand::Operand()
 {
     type = IMM;
     value.imm_value = 0;
 }
 
-AsOperand::~AsOperand()
+Operand::~Operand()
 {
     // pass
 }
 
-AsOperand::AsOperand(const AsOperand &operant)
+Operand::Operand(const Operand &operant)
 {
     type = operant.type;
     value = operant.value;
 }
 
-AsOperand::AsOperand(const operant_type &t, const int &v)
+Operand::Operand(const operand_type &t, const int &v)
 {
     type = t;
     if (type == REG)
@@ -32,24 +32,24 @@ AsOperand::AsOperand(const operant_type &t, const int &v)
     }
 }
 
-int AsOperand::ImmValue()
+int Operand::ImmValue()
 {
     assert(type == IMM);
     return value.imm_value;
 }
 
-bool AsOperand::IsReg()
+bool Operand::IsReg()
 {
     return type == REG;
 }
 
-std::ostream &operator<<(std::ostream &os, const AsOperand &operant)
+std::ostream &operator<<(std::ostream &os, const Operand &operant)
 {
-    if (operant.type == AsOperand::REG)
+    if (operant.type == Operand::REG)
     {
         os << "%" << operant.value.reg_no;
     }
-    else if (operant.type == AsOperand::IMM)
+    else if (operant.type == Operand::IMM)
     {
         os << operant.value.imm_value;
     }
