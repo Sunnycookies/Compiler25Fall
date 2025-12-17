@@ -13,7 +13,7 @@ public:
     } type;
     int val;
     Symbol() = default;
-    Symbol(const symbol_type &, const int & = 0);
+    Symbol(const symbol_type &t, const int &v = 0);
 };
 
 class SymbolTable
@@ -28,9 +28,9 @@ private:
 
 public:
     static SymbolTable *GetSymbolTable();
-    int record(const std::string &, const Symbol &);
-    bool find(const std::string &);
-    Symbol get(const std::string &);
+    int Record(const std::string &ident, const Symbol &value);
+    bool Find(const std::string &ident);
+    Symbol Get(const std::string &ident);
 };
 
 extern SymbolTable *symbol_table;

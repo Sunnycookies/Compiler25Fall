@@ -19,9 +19,9 @@ SymbolTable *SymbolTable::GetSymbolTable()
     return pSymbolTable;
 }
 
-int SymbolTable::record(const std::string &ident, const Symbol &value)
+int SymbolTable::Record(const std::string &ident, const Symbol &value)
 {
-    if (find(ident))
+    if (Find(ident))
     {
         return -1;
     }
@@ -29,12 +29,12 @@ int SymbolTable::record(const std::string &ident, const Symbol &value)
     return 0;
 }
 
-bool SymbolTable::find(const std::string &ident)
+bool SymbolTable::Find(const std::string &ident)
 {
     return sym_table.find(ident) != sym_table.end();
 }
 
-Symbol SymbolTable::get(const std::string &ident)
+Symbol SymbolTable::Get(const std::string &ident)
 {
     return sym_table[ident];
 }

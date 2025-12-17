@@ -19,10 +19,10 @@ public:
         IMM,
     } type;
     Operand();
-    Operand(const Operand &);
-    Operand(const operand_type &, const int & = 0);
+    Operand(const Operand &operand);
+    Operand(const operand_type &t, const int &v = 0);
     ~Operand();
     int ImmValue();
     bool IsReg();
-    friend std::ostream &operator<<(std::ostream &, const Operand &);
+    friend std::ostream &operator<<(std::ostream &os, const Operand &operand);
 };

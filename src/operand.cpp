@@ -43,15 +43,15 @@ bool Operand::IsReg()
     return type == REG;
 }
 
-std::ostream &operator<<(std::ostream &os, const Operand &operant)
+std::ostream &operator<<(std::ostream &os, const Operand &operand)
 {
-    if (operant.type == Operand::REG)
+    if (operand.type == Operand::REG)
     {
-        os << "%" << operant.value.reg_no;
+        os << "%" << operand.value.reg_no;
     }
-    else if (operant.type == Operand::IMM)
+    else if (operand.type == Operand::IMM)
     {
-        os << operant.value.imm_value;
+        os << operand.value.imm_value;
     }
     return os;
 }

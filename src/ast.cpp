@@ -71,7 +71,7 @@ Operand StmtAST::Dump(std::ostream &os) const
     else if (type == LVAL)
     {
         std::string val_name = ((LValAST*)(lval.get()))->ident;
-        assert(symbol_table->find(val_name));
+        assert(symbol_table->Find(val_name));
         os << "\tstore " << operand << ", @" << val_name << "\n";
     }
     return Operand();
@@ -449,7 +449,7 @@ Operand ConstDefAST::Dump(std::ostream &os) const
 #endif
 
     Operand const_val = const_init_val->Dump(os);
-    assert(!symbol_table->record(ident, Symbol(Symbol::CONST, const_val.ImmValue())));
+    assert(!symbol_table->Record(ident, Symbol(Symbol::CONST, const_val.ImmValue())));
     return Operand();
 }
 
@@ -477,8 +477,8 @@ Operand LValAST::Dump(std::ostream &os) const
     debug << "LVal Dump\n";
 #endif
 
-    assert(symbol_table->find(ident));
-    Symbol symbol = symbol_table->get(ident);
+    assert(symbol_table->Find(ident));
+    Symbol symbol = symbol_table->Get(ident);
     if (symbol.type == Symbol::CONST)
     {
         return Operand(Operand::IMM, symbol.val);
@@ -524,7 +524,7 @@ Operand VarDefAST::Dump(std::ostream &os) const
         Operand val = init_val->Dump(os);
         os << "\tstore " << val << ", @" << ident << '\n';
     }
-    assert(!symbol_table->record(ident, Symbol(Symbol::VAR)));
+    assert(!symbol_table->Record(ident, Symbol(Symbol::VAR)));
     return Operand();
 }
 

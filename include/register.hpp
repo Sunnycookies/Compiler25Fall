@@ -10,17 +10,21 @@ class Register
 private:
     static int usable_reg_num;
     static int ret_reg_no;
+    static int sp_no;
     static int *reg_record;
     static std::unordered_map<koopa_raw_value_t, int> value_reg_map;
-    static int valid_reg_no();
     int reg_no;
 
 public:
-    static bool allocated(const koopa_raw_value_t &value);
-    Register();
-    Register(const koopa_raw_value_t &, const bool & = false);
+    enum special_register_type
+    {
+        ZERO,
+        RET,
+        SP,
+    };
+    Register(const special_register_type &type = ZERO);
+    Register(const koopa_raw_value_t &value);
     ~Register();
-    bool occupy_ret_reg();
-    void unallocate();
-    friend std::ostream &operator<<(std::ostream &, const Register &);
+    void Unallocate();
+    friend std::ostream &operator<<(std::ostream &os, const Register &reg);
 };
