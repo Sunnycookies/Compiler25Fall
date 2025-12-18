@@ -146,8 +146,8 @@ Operand FuncDefAST::Dump(std::ostream &os) const
     func_type->Dump(os);
     os << " {\n";
     os << "%entry:\n";
-    Operand returned = block->Dump(os);
-    if (!returned.ImmValue())
+    block->Dump(os);
+    if (!symbol_tables->IsReturned())
     {
         os << "\tret\n";
     }
@@ -181,13 +181,16 @@ Operand BlockAST::Dump(std::ostream &os) const
 #endif
 
     symbol_tables->NewSymbolTable();
-    int returned = 0;
-    for (size_t i = 0, len = block_items.size(); !returned && i < len; ++i)
+    for (size_t i = 0, len = block_items.size(); i < len; ++i)
     {
-        returned = block_items[i]->Dump(os).ImmValue();
+        block_items[i]->Dump(os);
+        if (symbol_tables->IsReturned())
+        {
+            break;
+        }
     }
     symbol_tables->DeleteSymbolTable();
-    return Operand(Operand::IMM, returned);
+    return Operand();
 }
 
 Operand BlockItemAST::Dump(std::ostream &os) const
@@ -216,6 +219,7 @@ Operand StmtAST::Dump(std::ostream &os) const
         {
             os << "\tret\n";
         }
+        symbol_tables->SetReturned();
         return Operand(Operand::IMM, -1);
     }
     else if (type == LVAL)

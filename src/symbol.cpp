@@ -16,6 +16,7 @@ SymbolTables *SymbolTables::GetSymbolTables()
     {
         pSymbolTables = new SymbolTables();
         pSymbolTables->current_table = -1;
+        pSymbolTables->returned = false;
     }
     return pSymbolTables;
 }
@@ -30,6 +31,7 @@ void SymbolTables::DeleteSymbolTable()
 {
     sym_tables.pop_back();
     --current_table;
+    // returned = false;
 }
 
 int SymbolTables::Record(const std::string &ident, const Symbol &value)
@@ -61,4 +63,14 @@ Symbol SymbolTables::Get(const std::string &ident)
         }
     }
     return Symbol(Symbol::CONST);
+}
+
+void SymbolTables::SetReturned()
+{
+    returned = true;
+}
+
+bool SymbolTables::IsReturned()
+{
+    return returned;
 }
