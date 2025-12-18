@@ -2,6 +2,8 @@
 
 #include <string>
 #include <unordered_map>
+#include <vector>
+#include <cassert>
 
 class Symbol
 {
@@ -16,21 +18,23 @@ public:
     Symbol(const symbol_type &t, const int &v = 0);
 };
 
-class SymbolTable
+class SymbolTables
 {
 private:
-    static SymbolTable *pSymbolTable;
-    std::unordered_map<std::string, Symbol> sym_table;
-    SymbolTable() = default;
-    ~SymbolTable() = delete;
-    SymbolTable(const SymbolTable &) = delete;
-    SymbolTable &operator=(const SymbolTable &) = delete;
+    static SymbolTables *pSymbolTables;
+    std::vector<std::unordered_map<std::string, Symbol>> sym_tables;
+    int current_table;
+    SymbolTables() = default;
+    ~SymbolTables() = delete;
+    SymbolTables(const SymbolTables &) = delete;
+    SymbolTables &operator=(const SymbolTables &) = delete;
 
 public:
-    static SymbolTable *GetSymbolTable();
+    static SymbolTables *GetSymbolTables();
+    void NewSymbolTable();
+    void DeleteSymbolTable();
     int Record(const std::string &ident, const Symbol &value);
-    bool Find(const std::string &ident);
     Symbol Get(const std::string &ident);
 };
 
-extern SymbolTable *symbol_table;
+extern SymbolTables *symbol_tables;

@@ -6,35 +6,59 @@ Symbol::Symbol(const symbol_type &t, const int &v)
     val = v;
 }
 
-SymbolTable *SymbolTable::pSymbolTable = nullptr;
+SymbolTables *SymbolTables::pSymbolTables = nullptr;
 
-SymbolTable* symbol_table = SymbolTable::GetSymbolTable();
+SymbolTables *symbol_tables = SymbolTables::GetSymbolTables();
 
-SymbolTable *SymbolTable::GetSymbolTable()
+SymbolTables *SymbolTables::GetSymbolTables()
 {
-    if (pSymbolTable == nullptr)
+    if (pSymbolTables == nullptr)
     {
-        pSymbolTable = new SymbolTable();
+        pSymbolTables = new SymbolTables();
+        pSymbolTables->current_table = -1;
     }
-    return pSymbolTable;
+    return pSymbolTables;
 }
 
-int SymbolTable::Record(const std::string &ident, const Symbol &value)
+void SymbolTables::NewSymbolTable()
 {
-    if (Find(ident))
+    sym_tables.push_back(std::unordered_map<std::string, Symbol>());
+    ++current_table;
+}
+
+void SymbolTables::DeleteSymbolTable()
+{
+    sym_tables.pop_back();
+    --current_table;
+}
+
+int SymbolTables::Record(const std::string &ident, const Symbol &value)
+{
+    assert(current_table >= 0);
+    if (sym_tables[current_table].find(ident) != sym_tables[current_table].end())
     {
         return -1;
     }
-    sym_table[ident] = value;
+    sym_tables[current_table][ident] = value;
     return 0;
 }
 
-bool SymbolTable::Find(const std::string &ident)
+Symbol SymbolTables::Get(const std::string &ident)
 {
-    return sym_table.find(ident) != sym_table.end();
-}
-
-Symbol SymbolTable::Get(const std::string &ident)
-{
-    return sym_table[ident];
+    for (int i = current_table; i >= 0; --i)
+    {
+        if (sym_tables[i].find(ident) != sym_tables[i].end())
+        {
+            Symbol sym = sym_tables[i][ident];
+            if (sym.type == Symbol::CONST)
+            {
+                return sym;
+            }
+            else if (sym.type == Symbol::VAR)
+            {
+                return Symbol(Symbol::VAR, i + 1);
+            }
+        }
+    }
+    return Symbol(Symbol::CONST);
 }

@@ -68,7 +68,7 @@ Operand ConstDefAST::Dump(std::ostream &os) const
 #endif
 
     Operand const_val = const_init_val->Dump(os);
-    assert(!symbol_table->Record(ident, Symbol(Symbol::CONST, const_val.ImmValue())));
+    assert(!symbol_tables->Record(ident, Symbol(Symbol::CONST, const_val.ImmValue())));
     return Operand();
 }
 
@@ -103,9 +103,9 @@ Operand VarDefAST::Dump(std::ostream &os) const
     if (type == INITVAL)
     {
         Operand val = init_val->Dump(os);
-        os << "\tstore " << val << ", @" << ident << '\n';
+        Symbol symbol = symbol_tables->Get(ident);
+        os << "\tstore " << val << ", @" << ident << "_" << symbol.val << '\n';
     }
-    assert(!symbol_table->Record(ident, Symbol(Symbol::VAR)));
     return Operand();
 }
 
@@ -115,7 +115,9 @@ Operand VarDefAST::DumpWithType(std::ostream &os, const BaseAST &type) const
     debug << "VarDef DumpWithType\n";
 #endif
 
-    os << "\t@" << ident << " = alloc " << type << "\n";
+    assert(!symbol_tables->Record(ident, Symbol(Symbol::VAR)));
+    Symbol symbol = symbol_tables->Get(ident);
+    os << "\t@" << ident << "_" << symbol.val << " = alloc " << type << "\n";
     return Dump(os);
 }
 
@@ -143,6 +145,7 @@ Operand FuncDefAST::Dump(std::ostream &os) const
     os << "fun @" << ident << "(): ";
     func_type->Dump(os);
     os << " {\n";
+    os << "%entry:\n";
     block->Dump(os);
     os << "}\n";
     return Operand();
@@ -173,7 +176,7 @@ Operand BlockAST::Dump(std::ostream &os) const
     debug << "Block Dump\n";
 #endif
 
-    os << "%entry:\n";
+    symbol_tables->NewSymbolTable();
     for (size_t i = 0, len = block_items.size(); i < len; ++i)
     {
         if (block_items[i]->Dump(os).ImmValue())
@@ -181,6 +184,7 @@ Operand BlockAST::Dump(std::ostream &os) const
             break;
         }
     }
+    symbol_tables->DeleteSymbolTable();
     return Operand();
 }
 
@@ -199,17 +203,34 @@ Operand StmtAST::Dump(std::ostream &os) const
     debug << "Stmt Dump\n";
 #endif
 
-    Operand operand = exp->Dump(os);
     if (type == RETURN)
     {
-        os << "\tret " << operand << "\n";
+        if (exp)
+        {
+            Operand operand = exp->Dump(os);
+            os << "\tret " << operand << "\n";
+        }
+        else
+        {
+            os << "\tret\n";
+        }
         return Operand(Operand::IMM, -1);
     }
     else if (type == LVAL)
     {
-        std::string val_name = ((LValAST *)(lval.get()))->ident;
-        assert(symbol_table->Find(val_name));
-        os << "\tstore " << operand << ", @" << val_name << "\n";
+        Operand operand = exp->Dump(os);
+        std::string val_name = ((LValAST *)(lval_or_block.get()))->ident;
+        Symbol symbol = symbol_tables->Get(val_name);
+        assert(symbol.val);
+        os << "\tstore " << operand << ", @" << val_name << "_" << symbol.val << "\n";
+    }
+    else if (type == EXP && exp)
+    {
+        exp->Dump(os);
+    }
+    else if (type == BLOCK)
+    {
+        lval_or_block->Dump(os);
     }
     return Operand();
 }
@@ -235,8 +256,8 @@ Operand LValAST::Dump(std::ostream &os) const
     debug << "LVal Dump\n";
 #endif
 
-    assert(symbol_table->Find(ident));
-    Symbol symbol = symbol_table->Get(ident);
+    Symbol symbol = symbol_tables->Get(ident);
+    assert(symbol.val);
     if (symbol.type == Symbol::CONST)
     {
         return Operand(Operand::IMM, symbol.val);
@@ -244,7 +265,7 @@ Operand LValAST::Dump(std::ostream &os) const
     else if (symbol.type == Symbol::VAR)
     {
         Operand var_reg = Operand(Operand::REG);
-        os << "\t" << var_reg << " = load @" << ident << "\n";
+        os << "\t" << var_reg << " = load @" << ident << "_" << symbol.val << "\n";
         return var_reg;
     }
     return Operand();

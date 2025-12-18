@@ -215,8 +215,29 @@ Stmt
   | LVal '=' Exp ';' {
     auto ast = new StmtAST();
     ast->type = StmtAST::LVAL;
-    ast->lval = unique_ptr<BaseAST>($1);
+    ast->lval_or_block = unique_ptr<BaseAST>($1);
     ast->exp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  | RETURN ';' {
+    auto ast = new StmtAST();
+    ast->type = StmtAST::RETURN;
+  }
+  | Exp ';' {
+    auto ast = new StmtAST();
+    ast->type = StmtAST::EXP;
+    ast->exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | ';' {
+    auto ast = new StmtAST();
+    ast->type = StmtAST::EXP;
+    $$ = ast;
+  }
+  | Block {
+    auto ast = new StmtAST();
+    ast->type = StmtAST::BLOCK;
+    ast->lval_or_block = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;

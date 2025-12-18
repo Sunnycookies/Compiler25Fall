@@ -152,8 +152,10 @@ public:
     {
         LVAL,
         RETURN,
+        EXP,
+        BLOCK,
     } type;
-    std::unique_ptr<BaseAST> lval;
+    std::unique_ptr<BaseAST> lval_or_block;
     std::unique_ptr<BaseAST> exp;
     Operand Dump(std::ostream &os) const override;
 };
