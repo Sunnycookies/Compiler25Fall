@@ -18,12 +18,96 @@ public:
     friend std::ostream &operator<<(std::ostream &os, const BaseAST &ast);
 };
 
+/*
+=================================================
+- Program
+=================================================
+*/
+
 class CompUnitAST : public BaseAST
 {
 public:
     std::unique_ptr<BaseAST> func_def;
     Operand Dump(std::ostream &os) const override;
 };
+
+/*
+=================================================
+- Variable Declaration & Definition
+=================================================
+*/
+
+class DeclAST : public BaseAST
+{
+public:
+    std::unique_ptr<BaseAST> const_or_var_decl;
+    Operand Dump(std::ostream &os) const override;
+};
+
+class ConstDeclAST : public BaseAST
+{
+public:
+    std::unique_ptr<BaseAST> b_type;
+    std::deque<std::unique_ptr<BaseAST>> const_defs;
+    Operand Dump(std::ostream &os) const override;
+};
+
+class BTypeAST : public BaseAST
+{
+public:
+    std::string type;
+    Operand Dump(std::ostream &os) const override;
+};
+
+class ConstDefAST : public BaseAST
+{
+public:
+    std::string ident;
+    std::unique_ptr<BaseAST> const_init_val;
+    Operand Dump(std::ostream &os) const override;
+};
+
+class ConstInitValAST : public BaseAST
+{
+public:
+    std::unique_ptr<BaseAST> const_exp;
+    Operand Dump(std::ostream &os) const override;
+};
+
+class VarDeclAST : public BaseAST
+{
+public:
+    std::unique_ptr<BaseAST> b_type;
+    std::deque<std::unique_ptr<BaseAST>> var_defs;
+    Operand Dump(std::ostream &os) const override;
+};
+
+class VarDefAST : public BaseAST
+{
+public:
+    enum var_def_type
+    {
+        IDENT,
+        INITVAL,
+    } type;
+    std::string ident;
+    std::unique_ptr<BaseAST> init_val;
+    Operand Dump(std::ostream &os) const override;
+    Operand DumpWithType(std::ostream &os, const BaseAST &type) const;
+};
+
+class InitValAST : public BaseAST
+{
+public:
+    std::unique_ptr<BaseAST> exp;
+    Operand Dump(std::ostream &os) const override;
+};
+
+/*
+=================================================
+- Fuction Declaration
+=================================================
+*/
 
 class FuncDefAST : public BaseAST
 {
@@ -41,10 +125,23 @@ public:
     Operand Dump(std::ostream &os) const override;
 };
 
+/*
+=================================================
+- Block
+=================================================
+*/
+
 class BlockAST : public BaseAST
 {
 public:
     std::deque<std::unique_ptr<BaseAST>> block_items;
+    Operand Dump(std::ostream &os) const override;
+};
+
+class BlockItemAST : public BaseAST
+{
+public:
+    std::unique_ptr<BaseAST> decl_or_stmt;
     Operand Dump(std::ostream &os) const override;
 };
 
@@ -61,6 +158,12 @@ public:
     Operand Dump(std::ostream &os) const override;
 };
 
+/*
+=================================================
+- Expression
+=================================================
+*/
+
 class ExpAST : public BaseAST
 {
 public:
@@ -68,10 +171,10 @@ public:
     Operand Dump(std::ostream &os) const override;
 };
 
-class NumberAST : public BaseAST
+class LValAST : public BaseAST
 {
 public:
-    int number;
+    std::string ident;
     Operand Dump(std::ostream &os) const override;
 };
 
@@ -79,6 +182,13 @@ class PrimaryExpAST : public BaseAST
 {
 public:
     std::unique_ptr<BaseAST> exp_or_lval_or_number;
+    Operand Dump(std::ostream &os) const override;
+};
+
+class NumberAST : public BaseAST
+{
+public:
+    int number;
     Operand Dump(std::ostream &os) const override;
 };
 
@@ -179,87 +289,7 @@ public:
     Operand Dump(std::ostream &os) const override;
 };
 
-class DeclAST : public BaseAST
-{
-public:
-    std::unique_ptr<BaseAST> const_or_var_decl;
-    Operand Dump(std::ostream &os) const override;
-};
-
-class ConstDeclAST : public BaseAST
-{
-public:
-    std::unique_ptr<BaseAST> b_type;
-    std::deque<std::unique_ptr<BaseAST>> const_defs;
-    Operand Dump(std::ostream &os) const override;
-};
-
-class BTypeAST : public BaseAST
-{
-public:
-    std::string type;
-    Operand Dump(std::ostream &os) const override;
-};
-
-class ConstDefAST : public BaseAST
-{
-public:
-    std::string ident;
-    std::unique_ptr<BaseAST> const_init_val;
-    Operand Dump(std::ostream &os) const override;
-};
-
-class ConstInitValAST : public BaseAST
-{
-public:
-    std::unique_ptr<BaseAST> const_exp;
-    Operand Dump(std::ostream &os) const override;
-};
-
-class BlockItemAST : public BaseAST
-{
-public:
-    std::unique_ptr<BaseAST> decl_or_stmt;
-    Operand Dump(std::ostream &os) const override;
-};
-
-class LValAST : public BaseAST
-{
-public:
-    std::string ident;
-    Operand Dump(std::ostream &os) const override;
-};
-
 class ConstExpAST : public BaseAST
-{
-public:
-    std::unique_ptr<BaseAST> exp;
-    Operand Dump(std::ostream &os) const override;
-};
-
-class VarDeclAST : public BaseAST
-{
-public:
-    std::unique_ptr<BaseAST> b_type;
-    std::deque<std::unique_ptr<BaseAST>> var_defs;
-    Operand Dump(std::ostream &os) const override;
-};
-
-class VarDefAST : public BaseAST
-{
-public:
-    enum var_def_type
-    {
-        IDENT,
-        INITVAL,
-    } type;
-    std::string ident;
-    std::unique_ptr<BaseAST> init_val;
-    Operand Dump(std::ostream &os) const override;
-    Operand DumpWithType(std::ostream &os, const BaseAST &type) const;
-};
-
-class InitValAST : public BaseAST
 {
 public:
     std::unique_ptr<BaseAST> exp;

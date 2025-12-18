@@ -6,6 +6,12 @@ std::ostream &operator<<(std::ostream &os, const BaseAST &ast)
     return os;
 }
 
+/*
+=================================================
+- Program
+=================================================
+*/
+
 Operand CompUnitAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
@@ -15,6 +21,118 @@ Operand CompUnitAST::Dump(std::ostream &os) const
     func_def->Dump(os);
     return Operand();
 }
+
+/*
+=================================================
+- Variable Declaration & Definition
+=================================================
+*/
+
+Operand DeclAST::Dump(std::ostream &os) const
+{
+#ifdef DEBUG
+    debug << "Decl Dump\n";
+#endif
+
+    const_or_var_decl->Dump(os);
+    return Operand();
+}
+
+Operand ConstDeclAST::Dump(std::ostream &os) const
+{
+#ifdef DEBUG
+    debug << "ConstDecl Dump\n";
+#endif
+
+    for (size_t i = 0, len = const_defs.size(); i < len; ++i)
+    {
+        Operand const_value = const_defs[i]->Dump(os);
+    }
+    return Operand();
+}
+
+Operand BTypeAST::Dump(std::ostream &os) const
+{
+#ifdef DEBUG
+    debug << "BType Dump\n";
+#endif
+
+    os << "i32";
+    return Operand();
+}
+
+Operand ConstDefAST::Dump(std::ostream &os) const
+{
+#ifdef DEBUG
+    debug << "ConstDef Dump\n";
+#endif
+
+    Operand const_val = const_init_val->Dump(os);
+    assert(!symbol_table->Record(ident, Symbol(Symbol::CONST, const_val.ImmValue())));
+    return Operand();
+}
+
+Operand ConstInitValAST::Dump(std::ostream &os) const
+{
+#ifdef DEBUG
+    debug << "ConstInitVal Dump\n";
+#endif
+
+    return const_exp->Dump(os);
+}
+
+Operand VarDeclAST::Dump(std::ostream &os) const
+{
+#ifdef DEBUG
+    debug << "VarDecl Dump\n";
+#endif
+
+    for (size_t i = 0, len = var_defs.size(); i < len; ++i)
+    {
+        ((VarDefAST *)(var_defs[i].get()))->DumpWithType(os, *b_type);
+    }
+    return Operand();
+}
+
+Operand VarDefAST::Dump(std::ostream &os) const
+{
+#ifdef DEBUG
+    debug << "VarDef Dump\n";
+#endif
+
+    if (type == INITVAL)
+    {
+        Operand val = init_val->Dump(os);
+        os << "\tstore " << val << ", @" << ident << '\n';
+    }
+    assert(!symbol_table->Record(ident, Symbol(Symbol::VAR)));
+    return Operand();
+}
+
+Operand VarDefAST::DumpWithType(std::ostream &os, const BaseAST &type) const
+{
+#ifdef DEBUG
+    debug << "VarDef DumpWithType\n";
+#endif
+
+    os << "\t@" << ident << " = alloc " << type << "\n";
+    return Dump(os);
+}
+
+Operand InitValAST::Dump(std::ostream &os) const
+{
+#ifdef DEBUG
+    debug << "InitVal Dump\n";
+#endif
+
+    return exp->Dump(os);
+}
+
+/*
+=================================================
+- Fuction Declaration
+=================================================
+*/
 
 Operand FuncDefAST::Dump(std::ostream &os) const
 {
@@ -43,6 +161,12 @@ Operand FuncTypeAST::Dump(std::ostream &os) const
     return Operand();
 }
 
+/*
+=================================================
+- Block
+=================================================
+*/
+
 Operand BlockAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
@@ -52,9 +176,21 @@ Operand BlockAST::Dump(std::ostream &os) const
     os << "%entry:\n";
     for (size_t i = 0, len = block_items.size(); i < len; ++i)
     {
-        block_items[i]->Dump(os);
+        if (block_items[i]->Dump(os).ImmValue())
+        {
+            break;
+        }
     }
     return Operand();
+}
+
+Operand BlockItemAST::Dump(std::ostream &os) const
+{
+#ifdef DEBUG
+    debug << "BlockItem Dump\n";
+#endif
+
+    return decl_or_stmt->Dump(os);
 }
 
 Operand StmtAST::Dump(std::ostream &os) const
@@ -67,15 +203,22 @@ Operand StmtAST::Dump(std::ostream &os) const
     if (type == RETURN)
     {
         os << "\tret " << operand << "\n";
+        return Operand(Operand::IMM, -1);
     }
     else if (type == LVAL)
     {
-        std::string val_name = ((LValAST*)(lval.get()))->ident;
+        std::string val_name = ((LValAST *)(lval.get()))->ident;
         assert(symbol_table->Find(val_name));
         os << "\tstore " << operand << ", @" << val_name << "\n";
     }
     return Operand();
 }
+
+/*
+=================================================
+- Expression
+=================================================
+*/
 
 Operand ExpAST::Dump(std::ostream &os) const
 {
@@ -86,13 +229,25 @@ Operand ExpAST::Dump(std::ostream &os) const
     return lor_exp->Dump(os);
 }
 
-Operand NumberAST::Dump(std::ostream &os) const
+Operand LValAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
-    debug << "Number Dump\n";
+    debug << "LVal Dump\n";
 #endif
 
-    return Operand(Operand::IMM, number);
+    assert(symbol_table->Find(ident));
+    Symbol symbol = symbol_table->Get(ident);
+    if (symbol.type == Symbol::CONST)
+    {
+        return Operand(Operand::IMM, symbol.val);
+    }
+    else if (symbol.type == Symbol::VAR)
+    {
+        Operand var_reg = Operand(Operand::REG);
+        os << "\t" << var_reg << " = load @" << ident << "\n";
+        return var_reg;
+    }
+    return Operand();
 }
 
 Operand PrimaryExpAST::Dump(std::ostream &os) const
@@ -102,6 +257,15 @@ Operand PrimaryExpAST::Dump(std::ostream &os) const
 #endif
 
     return exp_or_lval_or_number->Dump(os);
+}
+
+Operand NumberAST::Dump(std::ostream &os) const
+{
+#ifdef DEBUG
+    debug << "Number Dump\n";
+#endif
+
+    return Operand(Operand::IMM, number);
 }
 
 Operand UnaryExpAST::Dump(std::ostream &os) const
@@ -409,139 +573,10 @@ Operand LOrExpAST::Dump(std::ostream &os) const
     return Operand();
 }
 
-Operand DeclAST::Dump(std::ostream &os) const
-{
-#ifdef DEBUG
-    debug << "Decl Dump\n";
-#endif
-
-    const_or_var_decl->Dump(os);
-    return Operand();
-}
-
-Operand ConstDeclAST::Dump(std::ostream &os) const
-{
-#ifdef DEBUG
-    debug << "ConstDecl Dump\n";
-#endif
-
-    for (size_t i = 0, len = const_defs.size(); i < len; ++i)
-    {
-        Operand const_value = const_defs[i]->Dump(os);
-    }
-    return Operand();
-}
-
-Operand BTypeAST::Dump(std::ostream &os) const
-{
-#ifdef DEBUG
-    debug << "BType Dump\n";
-#endif
-
-    os << "i32";
-    return Operand();
-}
-
-Operand ConstDefAST::Dump(std::ostream &os) const
-{
-#ifdef DEBUG
-    debug << "ConstDef Dump\n";
-#endif
-
-    Operand const_val = const_init_val->Dump(os);
-    assert(!symbol_table->Record(ident, Symbol(Symbol::CONST, const_val.ImmValue())));
-    return Operand();
-}
-
-Operand ConstInitValAST::Dump(std::ostream &os) const
-{
-#ifdef DEBUG
-    debug << "ConstInitVal Dump\n";
-#endif
-
-    return const_exp->Dump(os);
-}
-
-Operand BlockItemAST::Dump(std::ostream &os) const
-{
-#ifdef DEBUG
-    debug << "BlockItem Dump\n";
-#endif
-
-    return decl_or_stmt->Dump(os);
-}
-
-Operand LValAST::Dump(std::ostream &os) const
-{
-#ifdef DEBUG
-    debug << "LVal Dump\n";
-#endif
-
-    assert(symbol_table->Find(ident));
-    Symbol symbol = symbol_table->Get(ident);
-    if (symbol.type == Symbol::CONST)
-    {
-        return Operand(Operand::IMM, symbol.val);
-    } else if (symbol.type == Symbol::VAR)
-    {
-        Operand var_reg = Operand(Operand::REG);
-        os << "\t" << var_reg << " = load @" << ident << "\n";
-        return var_reg;
-    }
-    return Operand();
-}
-
 Operand ConstExpAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
     debug << "ConstExp Dump\n";
-#endif
-
-    return exp->Dump(os);
-}
-
-Operand VarDeclAST::Dump(std::ostream &os) const
-{
-#ifdef DEBUG
-    debug << "VarDecl Dump\n";
-#endif
-
-    for(size_t i = 0, len = var_defs.size(); i < len; ++i)
-    {
-        ((VarDefAST*)(var_defs[i].get()))->DumpWithType(os, *b_type);
-    }
-    return Operand();
-}
-
-Operand VarDefAST::Dump(std::ostream &os) const
-{
-#ifdef DEBUG
-    debug << "VarDef Dump\n";
-#endif
-
-    if (type == INITVAL)
-    {
-        Operand val = init_val->Dump(os);
-        os << "\tstore " << val << ", @" << ident << '\n';
-    }
-    assert(!symbol_table->Record(ident, Symbol(Symbol::VAR)));
-    return Operand();
-}
-
-Operand VarDefAST::DumpWithType(std::ostream &os, const BaseAST &type) const
-{
-#ifdef DEBUG
-    debug << "VarDef DumpWithType\n";
-#endif
-
-    os << "\t@" << ident << " = alloc " << type << "\n";
-    return Dump(os);
-}
-
-Operand InitValAST::Dump(std::ostream &os) const
-{
-#ifdef DEBUG
-    debug << "InitVal Dump\n";
 #endif
 
     return exp->Dump(os);
