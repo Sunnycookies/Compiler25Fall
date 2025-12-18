@@ -43,6 +43,18 @@ bool Operand::IsReg()
     return type == REG;
 }
 
+Operand &Operand::SetAsReturnMark()
+{
+    type = REG;
+    value.reg_no = -1;
+    return *this;
+}
+
+bool Operand::IsReturnMark()
+{
+    return type == REG && value.reg_no < 0;
+}
+
 std::ostream &operator<<(std::ostream &os, const Operand &operand)
 {
     if (operand.type == Operand::REG)

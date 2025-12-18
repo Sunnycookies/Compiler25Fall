@@ -15,7 +15,7 @@ SymbolTables *SymbolTables::GetSymbolTables()
     if (pSymbolTables == nullptr)
     {
         pSymbolTables = new SymbolTables();
-        pSymbolTables->returned = false;
+        pSymbolTables->branch_count = 0;
     }
     return pSymbolTables;
 }
@@ -30,7 +30,7 @@ void SymbolTables::DeleteSymbolTable()
     sym_tables.pop_back();
 }
 
-void SymbolTables::Record(const std::string &ident, const Symbol &value)
+void SymbolTables::InnerBlockRecord(const std::string &ident, const Symbol &value)
 {
     assert(sym_tables.back().find(ident) == sym_tables.back().end());
     sym_tables.back()[ident] = value;
@@ -57,12 +57,17 @@ Symbol SymbolTables::Get(const std::string &ident)
     return Symbol(Symbol::VAR);
 }
 
-void SymbolTables::SetReturned()
+void SymbolTables::InterBlockAllocate(const std::string &ident)
 {
-    returned = true;
+    sym_allocated[std::make_pair(ident, sym_tables.size())] = true;
 }
 
-bool SymbolTables::IsReturned()
+bool SymbolTables::InterBlockAllocated(const std::string &ident)
 {
-    return returned;
+    return sym_allocated[std::make_pair(ident, sym_tables.size())];
+}
+
+int SymbolTables::NewBranchMark()
+{
+    return ++branch_count;
 }

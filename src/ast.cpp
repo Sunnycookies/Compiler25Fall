@@ -68,7 +68,7 @@ Operand ConstDefAST::Dump(std::ostream &os) const
 #endif
 
     Operand const_val = const_init_val->Dump(os);
-    symbol_tables->Record(ident, Symbol(Symbol::CONST, const_val.ImmValue()));
+    symbol_tables->InnerBlockRecord(ident, Symbol(Symbol::CONST, const_val.ImmValue()));
     return Operand();
 }
 
@@ -115,9 +115,13 @@ Operand VarDefAST::DumpWithType(std::ostream &os, const BaseAST &type) const
     debug << "VarDef DumpWithType\n";
 #endif
 
-    symbol_tables->Record(ident, Symbol(Symbol::VAR));
-    Symbol symbol = symbol_tables->Get(ident);
-    os << "\t@" << ident << "_" << symbol.val << " = alloc " << type << "\n";
+    symbol_tables->InnerBlockRecord(ident, Symbol(Symbol::VAR));
+    if (!symbol_tables->InterBlockAllocated(ident))
+    {
+        Symbol symbol = symbol_tables->Get(ident);
+        os << "\t@" << ident << "_" << symbol.val << " = alloc " << type << "\n";
+        symbol_tables->InterBlockAllocate(ident);
+    }
     return Dump(os);
 }
 
@@ -146,8 +150,8 @@ Operand FuncDefAST::Dump(std::ostream &os) const
     func_type->Dump(os);
     os << " {\n";
     os << "%entry:\n";
-    block->Dump(os);
-    if (!symbol_tables->IsReturned())
+    Operand return_val = block->Dump(os);
+    if (!return_val.IsReturnMark())
     {
         os << "\tret\n";
     }
@@ -183,10 +187,11 @@ Operand BlockAST::Dump(std::ostream &os) const
     symbol_tables->NewSymbolTable();
     for (size_t i = 0, len = block_items.size(); i < len; ++i)
     {
-        block_items[i]->Dump(os);
-        if (symbol_tables->IsReturned())
+        Operand return_val = block_items[i]->Dump(os);
+        if (return_val.IsReturnMark())
         {
-            break;
+            symbol_tables->DeleteSymbolTable();
+            return return_val;
         }
     }
     symbol_tables->DeleteSymbolTable();
@@ -210,6 +215,9 @@ Operand StmtAST::Dump(std::ostream &os) const
 
     if (type == RETURN)
     {
+#ifdef DEBUG
+        debug << "\tStmt - RETURN\n";
+#endif
         if (exp)
         {
             Operand operand = exp->Dump(os);
@@ -219,24 +227,89 @@ Operand StmtAST::Dump(std::ostream &os) const
         {
             os << "\tret\n";
         }
-        symbol_tables->SetReturned();
-        return Operand();
+        return Operand().SetAsReturnMark();
     }
+
     else if (type == LVAL)
     {
+#ifdef DEBUG
+        debug << "\tStmt - LVAL\n";
+#endif
         Operand operand = exp->Dump(os);
         std::string val_name = ((LValAST *)(lval_or_block.get()))->ident;
         Symbol symbol = symbol_tables->Get(val_name);
         assert(symbol.type == Symbol::VAR && symbol.val);
         os << "\tstore " << operand << ", @" << val_name << "_" << symbol.val << "\n";
     }
+
     else if (type == EXP && exp)
     {
-        exp->Dump(os);
+#ifdef DEBUG
+        debug << "\tStmt - EXP\n";
+#endif
+        return exp->Dump(os);
     }
+
     else if (type == BLOCK)
     {
-        lval_or_block->Dump(os);
+#ifdef DEBUG
+        debug << "\tStmt - BLOCK\n";
+#endif
+        return lval_or_block->Dump(os);
+    }
+
+    else if (type == IF)
+    {
+#ifdef DEBUG
+        debug << "\tStmt - IF\n";
+#endif
+        Operand cond = exp->Dump(os);
+        if (cond.type == Operand::IMM)
+        {
+            if (cond.ImmValue())
+            {
+                return then_stmt->Dump(os);
+            }
+            else if (else_stmt)
+            {
+                return else_stmt->Dump(os);
+            }
+            return Operand();
+        }
+
+        int branch_mark = symbol_tables->NewBranchMark();
+        std::string label_then = "%then_" + std::to_string(branch_mark);
+        std::string label_else = "%else_" + std::to_string(branch_mark);
+        std::string label_end = "%end_" + std::to_string(branch_mark);
+
+        os << "\tbr " << cond << ", " << label_then << ", " << (else_stmt ? label_else : label_end) << "\n";
+
+        os << label_then << ":\n";
+        Operand then_returned = then_stmt->Dump(os);
+        if (!then_returned.IsReturnMark())
+        {
+            os << "\tjump " << label_end << "\n";
+        }
+
+        Operand else_returned = Operand();
+        if (else_stmt)
+        {
+            os << label_else << ":\n";
+            else_returned = else_stmt->Dump(os);
+            if (!else_returned.IsReturnMark())
+            {
+                os << "\tjump " << label_end << "\n";
+            }
+        }
+
+        if (then_returned.IsReturnMark() && else_returned.IsReturnMark())
+        {
+            return Operand().SetAsReturnMark();
+        }
+        else
+        {
+            os << label_end << ":\n";
+        }
     }
     return Operand();
 }

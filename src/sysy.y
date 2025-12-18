@@ -30,12 +30,12 @@ using namespace std;
   std::deque<std::unique_ptr<BaseAST>> *deque_val;
 }
 
-%token INT RETURN CONST
+%token INT RETURN CONST IF ELSE
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 %token <str_val> NOT_OP ADD_OP MUL_OP REL_OP EQ_OP AND_OP OR_OP
 
-%type <ast_val> FuncDef FuncType Block BlockItem Stmt 
+%type <ast_val> FuncDef FuncType Block BlockItem Stmt StmtWithElse
 %type <ast_val> Exp LVal PrimaryExp Number UnaryExp MulExp AddExp RelExp EqExp LAndExp LOrExp ConstExp
 %type <ast_val> Decl ConstDecl BType ConstDef ConstInitVal VarDecl VarDef InitVal
 %type <deque_val> AnyBlockItem MoreConstDef MoreVarDef
@@ -238,6 +238,66 @@ Stmt
     auto ast = new StmtAST();
     ast->type = StmtAST::BLOCK;
     ast->lval_or_block = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | IF '(' Exp ')' Stmt {
+    auto ast = new StmtAST();
+    ast->type = StmtAST::IF;
+    ast->exp = unique_ptr<BaseAST>($3);
+    ast->then_stmt = unique_ptr<BaseAST>($5);
+    $$ = ast;
+  }
+  | IF '(' Exp ')' StmtWithElse ELSE Stmt {
+    auto ast = new StmtAST();
+    ast->type = StmtAST::IF;
+    ast->exp = unique_ptr<BaseAST>($3);
+    ast->then_stmt = unique_ptr<BaseAST>($5);
+    ast->else_stmt = unique_ptr<BaseAST>($7);
+    $$ = ast;
+  }
+  ;
+
+StmtWithElse
+  : RETURN Exp ';' {
+    auto ast = new StmtAST();
+    ast->type = StmtAST::RETURN;
+    ast->exp = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  | LVal '=' Exp ';' {
+    auto ast = new StmtAST();
+    ast->type = StmtAST::LVAL;
+    ast->lval_or_block = unique_ptr<BaseAST>($1);
+    ast->exp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  | RETURN ';' {
+    auto ast = new StmtAST();
+    ast->type = StmtAST::RETURN;
+  }
+  | Exp ';' {
+    auto ast = new StmtAST();
+    ast->type = StmtAST::EXP;
+    ast->exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | ';' {
+    auto ast = new StmtAST();
+    ast->type = StmtAST::EXP;
+    $$ = ast;
+  }
+  | Block {
+    auto ast = new StmtAST();
+    ast->type = StmtAST::BLOCK;
+    ast->lval_or_block = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | IF '(' Exp ')' StmtWithElse ELSE StmtWithElse {
+    auto ast = new StmtAST();
+    ast->type = StmtAST::IF;
+    ast->exp = unique_ptr<BaseAST>($3);
+    ast->then_stmt = unique_ptr<BaseAST>($5);
+    ast->else_stmt = unique_ptr<BaseAST>($7);
     $$ = ast;
   }
   ;

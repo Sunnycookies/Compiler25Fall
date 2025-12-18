@@ -24,5 +24,7 @@ public:
     ~Operand();
     int ImmValue();
     bool IsReg();
+    Operand &SetAsReturnMark();
+    bool IsReturnMark();
     friend std::ostream &operator<<(std::ostream &os, const Operand &operand);
 };
