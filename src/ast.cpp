@@ -68,7 +68,7 @@ Operand ConstDefAST::Dump(std::ostream &os) const
 #endif
 
     Operand const_val = const_init_val->Dump(os);
-    assert(!symbol_tables->Record(ident, Symbol(Symbol::CONST, const_val.ImmValue())));
+    symbol_tables->Record(ident, Symbol(Symbol::CONST, const_val.ImmValue()));
     return Operand();
 }
 
@@ -115,7 +115,7 @@ Operand VarDefAST::DumpWithType(std::ostream &os, const BaseAST &type) const
     debug << "VarDef DumpWithType\n";
 #endif
 
-    assert(!symbol_tables->Record(ident, Symbol(Symbol::VAR)));
+    symbol_tables->Record(ident, Symbol(Symbol::VAR));
     Symbol symbol = symbol_tables->Get(ident);
     os << "\t@" << ident << "_" << symbol.val << " = alloc " << type << "\n";
     return Dump(os);
@@ -220,14 +220,14 @@ Operand StmtAST::Dump(std::ostream &os) const
             os << "\tret\n";
         }
         symbol_tables->SetReturned();
-        return Operand(Operand::IMM, -1);
+        return Operand();
     }
     else if (type == LVAL)
     {
         Operand operand = exp->Dump(os);
         std::string val_name = ((LValAST *)(lval_or_block.get()))->ident;
         Symbol symbol = symbol_tables->Get(val_name);
-        assert(symbol.val);
+        assert(symbol.type == Symbol::VAR && symbol.val);
         os << "\tstore " << operand << ", @" << val_name << "_" << symbol.val << "\n";
     }
     else if (type == EXP && exp)
@@ -263,7 +263,7 @@ Operand LValAST::Dump(std::ostream &os) const
 #endif
 
     Symbol symbol = symbol_tables->Get(ident);
-    assert(symbol.val);
+    assert(symbol.type == Symbol::CONST || symbol.val);
     if (symbol.type == Symbol::CONST)
     {
         return Operand(Operand::IMM, symbol.val);

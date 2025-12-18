@@ -15,7 +15,6 @@ SymbolTables *SymbolTables::GetSymbolTables()
     if (pSymbolTables == nullptr)
     {
         pSymbolTables = new SymbolTables();
-        pSymbolTables->current_table = -1;
         pSymbolTables->returned = false;
     }
     return pSymbolTables;
@@ -24,30 +23,22 @@ SymbolTables *SymbolTables::GetSymbolTables()
 void SymbolTables::NewSymbolTable()
 {
     sym_tables.push_back(std::unordered_map<std::string, Symbol>());
-    ++current_table;
 }
 
 void SymbolTables::DeleteSymbolTable()
 {
     sym_tables.pop_back();
-    --current_table;
-    // returned = false;
 }
 
-int SymbolTables::Record(const std::string &ident, const Symbol &value)
+void SymbolTables::Record(const std::string &ident, const Symbol &value)
 {
-    assert(current_table >= 0);
-    if (sym_tables[current_table].find(ident) != sym_tables[current_table].end())
-    {
-        return -1;
-    }
-    sym_tables[current_table][ident] = value;
-    return 0;
+    assert(sym_tables.back().find(ident) == sym_tables.back().end());
+    sym_tables.back()[ident] = value;
 }
 
 Symbol SymbolTables::Get(const std::string &ident)
 {
-    for (int i = current_table; i >= 0; --i)
+    for (int i = sym_tables.size() - 1; i >= 0; --i)
     {
         if (sym_tables[i].find(ident) != sym_tables[i].end())
         {
@@ -62,7 +53,8 @@ Symbol SymbolTables::Get(const std::string &ident)
             }
         }
     }
-    return Symbol(Symbol::CONST);
+    assert(false);
+    return Symbol(Symbol::VAR);
 }
 
 void SymbolTables::SetReturned()

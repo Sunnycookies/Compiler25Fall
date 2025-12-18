@@ -23,7 +23,6 @@ class SymbolTables
 private:
     static SymbolTables *pSymbolTables;
     std::vector<std::unordered_map<std::string, Symbol>> sym_tables;
-    int current_table;
     bool returned;
     SymbolTables() = default;
     ~SymbolTables() = delete;
@@ -34,7 +33,7 @@ public:
     static SymbolTables *GetSymbolTables();
     void NewSymbolTable();
     void DeleteSymbolTable();
-    int Record(const std::string &ident, const Symbol &value);
+    void Record(const std::string &ident, const Symbol &value);
     Symbol Get(const std::string &ident);
     void SetReturned();
     bool IsReturned();
