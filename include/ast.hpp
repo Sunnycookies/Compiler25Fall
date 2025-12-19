@@ -155,6 +155,7 @@ public:
         EXP,
         BLOCK,
         IF,
+        WHILE,
     } type;
     std::unique_ptr<BaseAST> lval_or_block;
     std::unique_ptr<BaseAST> exp;

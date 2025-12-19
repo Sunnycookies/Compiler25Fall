@@ -311,6 +311,48 @@ Operand StmtAST::Dump(std::ostream &os) const
             os << label_end << ":\n";
         }
     }
+
+    else if (type == WHILE)
+    {
+#ifdef DEBUG
+        debug << "Stmt - WHILE\n";
+#endif
+        int branch_mark = symbol_tables->NewBranchMark();
+        std::string while_entry = "%while_entry_" + std::to_string(branch_mark);
+        std::string while_body = "%while_body_" + std::to_string(branch_mark);
+        std::string while_end = "%while_end_" + std::to_string(branch_mark);
+
+        os << "\tjump " << while_entry << "\n";
+        os << while_entry << ":\n";
+        Operand cond = exp->Dump(os);
+        if (cond.IsReg())
+        {
+            os << "\tbr " << cond << ", " << while_body << ", " << while_end << "\n";
+        }
+        else if (cond.ImmValue())
+        {
+            os << "\tjump " << while_body << "\n";
+        }
+        else
+        {
+            os << "\tjump " << while_end << "\n";
+            os << while_end << ":\n";
+            return Operand();
+        }
+
+        os << while_body << ":\n";
+        Operand return_val = stmt->Dump(os);
+        if (!return_val.IsReturnMark())
+        {
+            os << "\tjump " << while_entry << "\n";
+        }
+        else if (!cond.IsReg())
+        {
+            return Operand().SetAsReturnMark();
+        }
+
+        os << while_end << ":\n";
+    }
     return Operand();
 }
 

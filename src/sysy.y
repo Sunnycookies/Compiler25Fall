@@ -267,6 +267,13 @@ MatchedStmt
     ast->lval_or_block = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
+  | WHILE '(' Exp ')' MatchedStmt {
+    auto ast = new StmtAST();
+    ast->type = StmtAST::WHILE;
+    ast->exp = unique_ptr<BaseAST>($3);
+    ast->stmt = unique_ptr<BaseAST>($5);
+    $$ = ast;
+  }
   | IF '(' Exp ')' MatchedStmt ELSE MatchedStmt {
     auto ast = new StmtAST();
     ast->type = StmtAST::IF;
