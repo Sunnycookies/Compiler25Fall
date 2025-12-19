@@ -264,7 +264,7 @@ Operand StmtAST::Dump(std::ostream &os) const
         debug << "\tStmt - IF\n";
 #endif
         Operand cond = exp->Dump(os);
-        if (cond.type == Operand::IMM)
+        if (!cond.IsReg())
         {
             if (cond.ImmValue())
             {
@@ -627,23 +627,66 @@ Operand LAndExpAST::Dump(std::ostream &os) const
     {
         return eq_exp->Dump(os);
     }
+
     Operand left = land_exp->Dump(os);
-    Operand right = eq_exp->Dump(os);
-    if (left.IsReg() || right.IsReg())
+    if (!left.IsReg())
     {
-        Operand bool_left = Operand(Operand::REG);
-        Operand bool_right = Operand(Operand::REG);
-        Operand result = Operand(Operand::REG);
-        os << "\t" << bool_left << " = ne " << left << ", 0\n";
-        os << "\t" << bool_right << " = ne " << right << ", 0\n";
-        os << "\t" << result << " = and " << bool_left << ", " << bool_right << "\n";
-        return result;
+        if (left.ImmValue() == 0)
+        {
+            return Operand(Operand::IMM, 0);
+        }
+
+        Operand right = eq_exp->Dump(os);
+
+        if (right.IsReg())
+        {
+            Operand result = Operand(Operand::REG);
+            os << "\t" << result << " = ne " << right << ", 0\n";
+            return result;
+        }
+
+        return Operand(Operand::IMM, right.ImmValue() != 0);
+    }
+
+    Operand cond = Operand(Operand::REG);
+    int branch_mark = symbol_tables->NewBranchMark();
+    std::string and_then = "%and_then_" + std::to_string(branch_mark);
+    std::string and_else = "%and_else_" + std::to_string(branch_mark);
+    std::string and_end = "%and_end_" + std::to_string(branch_mark);
+    std::string and_result = "%and_result_" + std::to_string(branch_mark);
+
+    symbol_tables->InnerBlockRecord(and_result, Symbol(Symbol::VAR));
+    if (!symbol_tables->InterBlockAllocated(and_result))
+    {
+        os << "\t" << and_result << " = alloc i32\n";
+        symbol_tables->InterBlockAllocate(and_result);
+    }
+    os << "\t" << cond << " = ne " << left << ", 0\n";
+    os << "\tbr " << cond << ", " << and_then << ", " << and_else << "\n";
+
+    os << and_then << ":\n";
+    Operand right = eq_exp->Dump(os);
+    if (right.IsReg())
+    {
+        Operand temp = Operand(Operand::REG);
+        os << "\t" << temp << " = ne " << right << ", 0\n";
+        os << "\tstore " << temp << ", " << and_result << "\n";
     }
     else
     {
-        return Operand(Operand::IMM, left.ImmValue() && right.ImmValue());
+        os << "\tstore " << (right.ImmValue() != 0) << ", " << and_result << "\n";
     }
-    return Operand();
+    os << "\tjump " << and_end << "\n";
+
+    os << and_else << ":\n";
+    os << "\tstore 0, " << and_result << "\n";
+    os << "\tjump " << and_end << "\n";
+
+    os << and_end << ":\n";
+    Operand result = Operand(Operand::REG);
+    os << "\t" << result << " = load " << and_result << "\n";
+
+    return result;
 }
 
 Operand LOrExpAST::Dump(std::ostream &os) const
@@ -656,21 +699,65 @@ Operand LOrExpAST::Dump(std::ostream &os) const
     {
         return land_exp->Dump(os);
     }
+
     Operand left = lor_exp->Dump(os);
-    Operand right = land_exp->Dump(os);
-    if (left.IsReg() || right.IsReg())
+    if (!left.IsReg())
     {
-        Operand lr_or = Operand(Operand::REG);
-        Operand result = Operand(Operand::REG);
-        os << "\t" << lr_or << " = or " << left << ", " << right << "\n";
-        os << "\t" << result << " = ne " << lr_or << ", 0\n";
-        return result;
+        if (left.ImmValue() != 0)
+        {
+            return Operand(Operand::IMM, 1);
+        }
+
+        Operand right = land_exp->Dump(os);
+        if (right.IsReg())
+        {
+            Operand result = Operand(Operand::REG);
+            os << "\t" << result << " = ne " << right << ", 0\n";
+            return result;
+        }
+
+        return Operand(Operand::IMM, right.ImmValue() != 0);
+    }
+
+    Operand cond = Operand(Operand::REG);
+    int branch_mark = symbol_tables->NewBranchMark();
+    std::string or_then = "%or_then_" + std::to_string(branch_mark);
+    std::string or_else = "%or_else_" + std::to_string(branch_mark);
+    std::string or_end = "%or_end_" + std::to_string(branch_mark);
+    std::string or_result = "%or_result_" + std::to_string(branch_mark);
+
+    symbol_tables->InnerBlockRecord(or_result, Symbol(Symbol::VAR));
+    if (!symbol_tables->InterBlockAllocated(or_result))
+    {
+        os << "\t" << or_result << " = alloc i32\n";
+        symbol_tables->InterBlockAllocate(or_result);
+    }
+    os << "\t" << cond << " = ne " << left << ", 0\n";
+    os << "\tbr " << cond << ", " << or_then << ", " << or_else << "\n";
+
+    os << or_then << ":\n";
+    os << "\tstore 1, " << or_result << "\n";
+    os << "\tjump " << or_end << "\n";
+
+    os << or_else << ":\n";
+    Operand right = land_exp->Dump(os);
+    if (right.IsReg())
+    {
+        Operand temp = Operand(Operand::REG);
+        os << "\t" << temp << " = ne " << right << ", 0\n";
+        os << "\tstore " << temp << ", " << or_result << "\n";
     }
     else
     {
-        return Operand(Operand::IMM, left.ImmValue() || right.ImmValue());
+        os << "\tstore " << (right.ImmValue() != 0) << ", " << or_result << "\n";
     }
-    return Operand();
+    os << "\tjump " << or_end << "\n";
+
+    os << or_end << ":\n";
+    Operand result = Operand(Operand::REG);
+    os << "\t" << result << " = load " << or_result << "\n";
+
+    return result;
 }
 
 Operand ConstExpAST::Dump(std::ostream &os) const
