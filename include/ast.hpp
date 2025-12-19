@@ -158,7 +158,7 @@ public:
     } type;
     std::unique_ptr<BaseAST> lval_or_block;
     std::unique_ptr<BaseAST> exp;
-    std::unique_ptr<BaseAST> then_stmt;
+    std::unique_ptr<BaseAST> stmt;
     std::unique_ptr<BaseAST> else_stmt;
     Operand Dump(std::ostream &os) const override;
 };

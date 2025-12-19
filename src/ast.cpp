@@ -268,7 +268,7 @@ Operand StmtAST::Dump(std::ostream &os) const
         {
             if (cond.ImmValue())
             {
-                return then_stmt->Dump(os);
+                return stmt->Dump(os);
             }
             else if (else_stmt)
             {
@@ -285,7 +285,7 @@ Operand StmtAST::Dump(std::ostream &os) const
         os << "\tbr " << cond << ", " << label_then << ", " << (else_stmt ? label_else : label_end) << "\n";
 
         os << label_then << ":\n";
-        Operand then_returned = then_stmt->Dump(os);
+        Operand then_returned = stmt->Dump(os);
         if (!then_returned.IsReturnMark())
         {
             os << "\tjump " << label_end << "\n";
