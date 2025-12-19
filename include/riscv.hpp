@@ -35,5 +35,7 @@ public:
     void Rem(const Register &rd, const Register &rs1, const Register &rs2);
     void Mv(const Register &rd, const Register &rs);
     void Li(const Register &rd, const int &imm);
+    void Bnez(const Register &rs, const char *label);
+    void J(const char *label);
     void Ret();
 };

@@ -125,6 +125,16 @@ void RISCCode::Li(const Register &rd, const int &imm)
     *pos << "\tli " << rd << ", " << imm << "\n";
 }
 
+void RISCCode::Bnez(const Register &rs, const char *label)
+{
+    *pos << "\tbnez " << rs << ", " << label << "\n";
+}
+
+void RISCCode::J(const char * label)
+{
+    *pos << "\tj " << label << "\n";
+}
+
 void RISCCode::Ret()
 {
     *pos << "\tret\n";

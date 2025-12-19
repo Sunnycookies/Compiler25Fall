@@ -98,6 +98,7 @@ void Backend::Visit(const koopa_raw_basic_block_t &bb)
     debug << "Visit BasicBlock\n";
 #endif
 
+    printer.Label(bb->name + 1);
     Visit(bb->insts);
 }
 
@@ -124,6 +125,12 @@ void Backend::Visit(const koopa_raw_value_t &value)
         break;
     case KOOPA_RVT_ALLOC:
         break;
+    case KOOPA_RVT_BRANCH:
+        Visit(kind.data.branch);
+        break;
+    case KOOPA_RVT_JUMP:
+        Visit(kind.data.jump);
+        break;
     default:
         assert(false);
     }
@@ -135,21 +142,23 @@ void Backend::Visit(const koopa_raw_return_t &ret)
     debug << "Visit Return\n";
 #endif
 
+    Register ret_reg = Register(Register::RET);
     if (!ret.value)
     {
-        printer.Li(Register(Register::RET), 0);
+        printer.Li(ret_reg, 0);
     }
     else if (ret.value->kind.tag == KOOPA_RVT_INTEGER)
     {
-        printer.Li(Register(Register::RET), ret.value->kind.data.integer.value);
+        printer.Li(ret_reg, ret.value->kind.data.integer.value);
     }
     else
     {
         Visit(ret.value);
-        printer.Lw(Register(Register::SP), Register(Register::RET), stack.GetOffset(ret.value));
+        printer.Lw(Register(Register::SP), ret_reg, stack.GetOffset(ret.value));
     }
     printer.Addi(Register(Register::SP), Register(Register::SP), stack.GetStackSize());
     printer.Ret();
+    ret_reg.Unallocate();
 }
 
 void Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_binary_t &binary)
@@ -265,4 +274,26 @@ void Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_load_t &load
     stack.Push(value, DATA_SIZE);
     printer.Sw(Register(Register::SP), dst, stack.GetOffset(value));
     dst.Unallocate();
+}
+
+void Backend::Visit(const koopa_raw_branch_t &branch)
+{
+#ifdef DEBUG
+    debug << "Visit Branch\n";
+#endif
+
+    Register cond = Register(branch.cond);
+    printer.Lw(Register(Register::SP), cond, stack.GetOffset(branch.cond));
+    printer.Bnez(cond, branch.true_bb->name + 1);
+    printer.J(branch.false_bb->name + 1);
+    cond.Unallocate();
+}
+
+void Backend::Visit(const koopa_raw_jump_t &jump)
+{
+#ifdef DEBUG
+    debug << "Visit Jump\n";
+#endif
+
+    printer.J(jump.target->name + 1);
 }
