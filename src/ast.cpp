@@ -193,13 +193,9 @@ Operand BlockAST::Dump(std::ostream &os) const
     for (size_t i = 0, len = block_items.size(); i < len; ++i)
     {
         Operand return_val = block_items[i]->Dump(os);
-        if (return_val.IsReturnMark())
+        if (!return_val.IsNormal())
         {
             symbol_tables->DeleteSymbolTable();
-            return return_val;
-        }
-        if (return_val.IsLoopInterruption())
-        {
             return return_val;
         }
     }
