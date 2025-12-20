@@ -4,13 +4,14 @@
 #include <string>
 #include "register.hpp"
 
-class RISCCode
+class RiscvCode
 {
 private:
+    bool ImmOutOfRange(const int &imm);
     std::ostream *pos;
 
 public:
-    RISCCode(std::ostream &os = std::cout);
+    RiscvCode(std::ostream &os = std::cout);
     void SetOstream(std::ostream &os);
     void Text();
     void Global(const char *name);

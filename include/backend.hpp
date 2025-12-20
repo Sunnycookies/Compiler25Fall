@@ -20,7 +20,7 @@ private:
     koopa_raw_program_t raw_program;
     koopa_raw_program_builder_t builder;
     Stack stack;
-    RISCCode printer;
+    RiscvCode printer;
     void Visit(const koopa_raw_slice_t &slice);
     void Visit(const koopa_raw_function_t &func);
     void Visit(const koopa_raw_basic_block_t &bb);

@@ -1,141 +1,175 @@
 #include "riscv.hpp"
 
-RISCCode::RISCCode(std::ostream &os)
+RiscvCode::RiscvCode(std::ostream &os)
 {
     pos = &os;
 }
 
-void RISCCode::SetOstream(std::ostream &os)
+bool RiscvCode::ImmOutOfRange(const int &imm)
+{
+    return imm < -2048 || imm > 2047;
+}
+
+void RiscvCode::SetOstream(std::ostream &os)
 {
     pos = &os;
 }
 
-void RISCCode::Text()
+void RiscvCode::Text()
 {
     *pos << "\t.text\n";
 }
 
-void RISCCode::Global(const char *name)
+void RiscvCode::Global(const char *name)
 {
     *pos << "\t.global " << name << "\n";
 }
 
-void RISCCode::Label(const char *name)
+void RiscvCode::Label(const char *name)
 {
     *pos << name << ":\n";
 }
 
-void RISCCode::Lw(const Register &rd, const Register &rs, const int &imm)
+void RiscvCode::Lw(const Register &rd, const Register &rs, const int &imm)
 {
-    *pos << "\tlw " << rs << ", " << imm << "(" << rd << ")\n";
+    if (ImmOutOfRange(imm))
+    {
+        Register temp = Register();
+        Li(temp, imm);
+        Add(temp, temp, rs);
+        *pos << "\tlw " << rs << ", (" << temp << ")\n";
+    }
+    else
+    {
+        *pos << "\tlw " << rs << ", " << imm << "(" << rd << ")\n";
+    }
 }
 
-void RISCCode::Sw(const Register &rs1, const Register &rs2, const int &imm)
+void RiscvCode::Sw(const Register &rs1, const Register &rs2, const int &imm)
 {
-    *pos << "\tsw " << rs2 << ", " << imm << "(" << rs1 << ")\n";
+    if (ImmOutOfRange(imm))
+    {
+        Register temp = Register();
+        Li(temp, imm);
+        Add(temp, temp, rs1);
+        *pos << "\tsw " << rs2 << ", (" << temp << ")\n";
+    }
+    else
+    {
+        *pos << "\tsw " << rs2 << ", " << imm << "(" << rs1 << ")\n";
+    }
 }
 
-void RISCCode::Add(const Register &rd, const Register &rs1, const Register &rs2)
+void RiscvCode::Add(const Register &rd, const Register &rs1, const Register &rs2)
 {
     *pos << "\tadd " << rd << ", " << rs1 << ", " << rs2 << "\n";
 }
 
-void RISCCode::Addi(const Register &rd, const Register &rs1, const int &imm)
+void RiscvCode::Addi(const Register &rd, const Register &rs1, const int &imm)
 {
-    *pos << "\taddi " << rd << ", " << rs1 << ", " << imm << "\n";
+    if (ImmOutOfRange(imm))
+    {
+        Register temp = Register();
+        Li(temp, imm);
+        Add(rd, rs1, temp);
+    }
+    else
+    {
+        *pos << "\taddi " << rd << ", " << rs1 << ", " << imm << "\n";
+    }
 }
 
-void RISCCode::Sub(const Register &rd, const Register &rs1, const Register &rs2)
+void RiscvCode::Sub(const Register &rd, const Register &rs1, const Register &rs2)
 {
     *pos << "\tsub " << rd << ", " << rs1 << ", " << rs2 << "\n";
 }
 
-void RISCCode::Slt(const Register &rd, const Register &rs1, const Register &rs2)
+void RiscvCode::Slt(const Register &rd, const Register &rs1, const Register &rs2)
 {
     *pos << "\tslt " << rd << ", " << rs1 << ", " << rs2 << "\n";
 }
 
-void RISCCode::Sgt(const Register &rd, const Register &rs1, const Register &rs2)
+void RiscvCode::Sgt(const Register &rd, const Register &rs1, const Register &rs2)
 {
     *pos << "\tsgt " << rd << ", " << rs1 << ", " << rs2 << "\n";
 }
 
-void RISCCode::Seqz(const Register &rd, const Register &rs)
+void RiscvCode::Seqz(const Register &rd, const Register &rs)
 {
     *pos << "\tseqz " << rd << ", " << rs << "\n";
 }
 
-void RISCCode::Snez(const Register &rd, const Register &rs)
+void RiscvCode::Snez(const Register &rd, const Register &rs)
 {
     *pos << "\tsnez " << rd << ", " << rs << "\n";
 }
 
-void RISCCode::Xor(const Register &rd, const Register &rs1, const Register &rs2)
+void RiscvCode::Xor(const Register &rd, const Register &rs1, const Register &rs2)
 {
     *pos << "\txor " << rd << ", " << rs1 << ", " << rs2 << "\n";
 }
 
-void RISCCode::Xori(const Register &rd, const Register &rs1, const int &imm)
+void RiscvCode::Xori(const Register &rd, const Register &rs1, const int &imm)
 {
     *pos << "\txori " << rd << ", " << rs1 << ", " << imm << "\n";
 }
 
-void RISCCode::Or(const Register &rd, const Register &rs1, const Register &rs2)
+void RiscvCode::Or(const Register &rd, const Register &rs1, const Register &rs2)
 {
     *pos << "\tor " << rd << ", " << rs1 << ", " << rs2 << "\n";
 }
 
-void RISCCode::Ori(const Register &rd, const Register &rs1, const int &imm)
+void RiscvCode::Ori(const Register &rd, const Register &rs1, const int &imm)
 {
     *pos << "\tori " << rd << ", " << rs1 << ", " << imm << "\n";
 }
 
-void RISCCode::And(const Register &rd, const Register &rs1, const Register &rs2)
+void RiscvCode::And(const Register &rd, const Register &rs1, const Register &rs2)
 {
     *pos << "\tand " << rd << ", " << rs1 << ", " << rs2 << "\n";
 }
 
-void RISCCode::Andi(const Register &rd, const Register &rs1, const int &imm)
+void RiscvCode::Andi(const Register &rd, const Register &rs1, const int &imm)
 {
     *pos << "\tand " << rd << ", " << rs1 << ", " << imm << "\n";
 }
 
-void RISCCode::Mul(const Register &rd, const Register &rs1, const Register &rs2)
+void RiscvCode::Mul(const Register &rd, const Register &rs1, const Register &rs2)
 {
     *pos << "\tmul " << rd << ", " << rs1 << ", " << rs2 << "\n";
 }
 
-void RISCCode::Div(const Register &rd, const Register &rs1, const Register &rs2)
+void RiscvCode::Div(const Register &rd, const Register &rs1, const Register &rs2)
 {
     *pos << "\tdiv " << rd << ", " << rs1 << ", " << rs2 << "\n";
 }
 
-void RISCCode::Rem(const Register &rd, const Register &rs1, const Register &rs2)
+void RiscvCode::Rem(const Register &rd, const Register &rs1, const Register &rs2)
 {
     *pos << "\trem " << rd << ", " << rs1 << ", " << rs2 << "\n";
 }
 
-void RISCCode::Mv(const Register &rd, const Register &rs)
+void RiscvCode::Mv(const Register &rd, const Register &rs)
 {
     *pos << "\tmv " << rd << ", " << rs << "\n";
 }
 
-void RISCCode::Li(const Register &rd, const int &imm)
+void RiscvCode::Li(const Register &rd, const int &imm)
 {
     *pos << "\tli " << rd << ", " << imm << "\n";
 }
 
-void RISCCode::Bnez(const Register &rs, const char *label)
+void RiscvCode::Bnez(const Register &rs, const char *label)
 {
     *pos << "\tbnez " << rs << ", " << label << "\n";
 }
 
-void RISCCode::J(const char * label)
+void RiscvCode::J(const char *label)
 {
     *pos << "\tj " << label << "\n";
 }
 
-void RISCCode::Ret()
+void RiscvCode::Ret()
 {
     *pos << "\tret\n";
 }

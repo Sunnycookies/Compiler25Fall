@@ -158,7 +158,7 @@ Operand FuncDefAST::Dump(std::ostream &os) const
     Operand return_val = block->Dump(os);
     if (!return_val.IsReturnMark())
     {
-        printer->Ret();
+        printer->RetV(Operand());
     }
     printer->EndCurBrac();
     return Operand();

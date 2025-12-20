@@ -249,6 +249,7 @@ MatchedStmt
   | RETURN ';' {
     auto ast = new StmtAST();
     ast->type = StmtAST::RETURN;
+    $$ = ast;
   }
   | Exp ';' {
     auto ast = new StmtAST();
