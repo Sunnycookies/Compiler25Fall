@@ -17,7 +17,7 @@ void KoopaCode::NewLine()
 
 void KoopaCode::FrontCurBrac()
 {
-    *pos << "{\n";
+    *pos << " {\n";
 }
 
 void KoopaCode::EndCurBrac()
@@ -107,7 +107,7 @@ void KoopaCode::Le(const Operand &dst, const Operand &src1, const Operand &src2)
 
 void KoopaCode::Ge(const Operand &dst, const Operand &src1, const Operand &src2)
 {
-    *pos << "\t" << dst << " = gr " << src1 << ", " << src2 << "\n";
+    *pos << "\t" << dst << " = ge " << src1 << ", " << src2 << "\n";
 }
 
 void KoopaCode::Eq(const Operand &dst, const Operand &src1, const Operand &src2)
