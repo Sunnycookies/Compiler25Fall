@@ -57,6 +57,11 @@ Symbol SymbolTables::Get(const std::string &ident)
     return Symbol(Symbol::VAR);
 }
 
+std::string SymbolTables::Mark(const std::string &name, const int &mark)
+{
+    return name + "_" + std::to_string(mark);
+}
+
 void SymbolTables::InterBlockAllocate(const std::string &ident)
 {
     sym_allocated[std::make_pair(ident, sym_tables.size())] = true;
@@ -70,4 +75,21 @@ bool SymbolTables::InterBlockAllocated(const std::string &ident)
 int SymbolTables::NewBranchMark()
 {
     return ++branch_count;
+}
+
+void SymbolTables::PushLoop(const int &loop_mark)
+{
+    loop_marks.push(loop_mark);
+}
+
+int SymbolTables::GetTopLoop()
+{
+    assert(loop_marks.size());
+    return loop_marks.top();
+}
+
+void SymbolTables::PopLoop()
+{
+    assert(loop_marks.size());
+    loop_marks.pop();
 }

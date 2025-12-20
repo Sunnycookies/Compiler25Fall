@@ -274,6 +274,16 @@ MatchedStmt
     ast->stmt = unique_ptr<BaseAST>($5);
     $$ = ast;
   }
+  | BREAK ';' {
+    auto ast = new StmtAST();
+    ast->type = StmtAST::BREAK;
+    $$ = ast;
+  }
+  | CONTINUE ';' {
+    auto ast = new StmtAST();
+    ast->type = StmtAST::CONTINUE;
+    $$ = ast;
+  }
   | IF '(' Exp ')' MatchedStmt ELSE MatchedStmt {
     auto ast = new StmtAST();
     ast->type = StmtAST::IF;

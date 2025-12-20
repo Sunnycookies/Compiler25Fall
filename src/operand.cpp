@@ -43,6 +43,11 @@ bool Operand::IsReg()
     return type == REG;
 }
 
+bool Operand::IsNormal()
+{
+    return type == IMM || value.reg_no >= 0;
+}
+
 Operand &Operand::SetAsReturnMark()
 {
     type = REG;
@@ -52,7 +57,25 @@ Operand &Operand::SetAsReturnMark()
 
 bool Operand::IsReturnMark()
 {
-    return type == REG && value.reg_no < 0;
+    return type == REG && value.reg_no == -1;
+}
+
+Operand &Operand::SetAsLoopInterruption()
+{
+    type = REG;
+    value.reg_no = -2;
+    return *this;
+}
+
+bool Operand::IsLoopInterruption()
+{
+    return type == REG && value.reg_no == -2;
+}
+
+Operand Operand::operator!=(const int &v)
+{
+    assert(type == IMM);
+    return Operand(Operand::IMM, value.imm_value != v);
 }
 
 std::ostream &operator<<(std::ostream &os, const Operand &operand)

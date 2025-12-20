@@ -24,7 +24,11 @@ public:
     ~Operand();
     int ImmValue();
     bool IsReg();
+    bool IsNormal();
     Operand &SetAsReturnMark();
     bool IsReturnMark();
+    Operand &SetAsLoopInterruption();
+    bool IsLoopInterruption();
+    Operand operator !=(const int &v);
     friend std::ostream &operator<<(std::ostream &os, const Operand &operand);
 };

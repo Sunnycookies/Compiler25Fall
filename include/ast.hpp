@@ -8,11 +8,13 @@
 #include "defs.hpp"
 #include "operand.hpp"
 #include "symbol.hpp"
+#include "koopa.hpp"
 
 // 所有 AST 的基类
 class BaseAST
 {
 public:
+    static KoopaCode *printer;
     virtual ~BaseAST() = default;
     virtual Operand Dump(std::ostream &os) const = 0;
     friend std::ostream &operator<<(std::ostream &os, const BaseAST &ast);
@@ -147,6 +149,13 @@ public:
 
 class StmtAST : public BaseAST
 {
+private:
+    static std::string branch_then;
+    static std::string branch_else;
+    static std::string branch_end;
+    static std::string loop_entry;
+    static std::string loop_body;
+    static std::string loop_end;
 public:
     enum stmt_type
     {
@@ -156,6 +165,8 @@ public:
         BLOCK,
         IF,
         WHILE,
+        BREAK,
+        CONTINUE,
     } type;
     std::unique_ptr<BaseAST> lval_or_block;
     std::unique_ptr<BaseAST> exp;
@@ -269,6 +280,11 @@ public:
 
 class LAndExpAST : public BaseAST
 {
+private:
+    static std::string and_then;
+    static std::string and_else;
+    static std::string and_end;
+    static std::string and_temp;
 public:
     enum land_exp_type
     {
@@ -283,6 +299,11 @@ public:
 
 class LOrExpAST : public BaseAST
 {
+private:
+    static std::string or_then;
+    static std::string or_else;
+    static std::string or_end;
+    static std::string or_temp;
 public:
     enum lor_exp_type
     {

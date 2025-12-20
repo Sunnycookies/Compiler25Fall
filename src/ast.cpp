@@ -1,7 +1,10 @@
 #include "ast.hpp"
 
+KoopaCode *BaseAST::printer = new KoopaCode();
+
 std::ostream &operator<<(std::ostream &os, const BaseAST &ast)
 {
+    ast.printer->SetOstream(os);
     ast.Dump(os);
     return os;
 }
@@ -57,7 +60,7 @@ Operand BTypeAST::Dump(std::ostream &os) const
     debug << "BType Dump\n";
 #endif
 
-    os << "i32";
+    printer->Int();
     return Operand();
 }
 
@@ -104,7 +107,7 @@ Operand VarDefAST::Dump(std::ostream &os) const
     {
         Operand val = init_val->Dump(os);
         Symbol symbol = symbol_tables->Get(ident);
-        os << "\tstore " << val << ", @" << ident << "_" << symbol.val << '\n';
+        printer->Store(val, symbol_tables->Mark(ident, symbol.val), false);
     }
     return Operand();
 }
@@ -119,7 +122,9 @@ Operand VarDefAST::DumpWithType(std::ostream &os, const BaseAST &type) const
     if (!symbol_tables->InterBlockAllocated(ident))
     {
         Symbol symbol = symbol_tables->Get(ident);
-        os << "\t@" << ident << "_" << symbol.val << " = alloc " << type << "\n";
+        printer->Alloc(symbol_tables->Mark(ident, symbol.val), false);
+        os << type;
+        printer->NewLine();
         symbol_tables->InterBlockAllocate(ident);
     }
     return Dump(os);
@@ -148,14 +153,14 @@ Operand FuncDefAST::Dump(std::ostream &os) const
 
     os << "fun @" << ident << "(): ";
     func_type->Dump(os);
-    os << " {\n";
-    os << "%entry:\n";
+    printer->FrontCurBrac();
+    printer->Label("entry");
     Operand return_val = block->Dump(os);
     if (!return_val.IsReturnMark())
     {
-        os << "\tret\n";
+        printer->Ret();
     }
-    os << "}\n";
+    printer->EndCurBrac();
     return Operand();
 }
 
@@ -167,7 +172,7 @@ Operand FuncTypeAST::Dump(std::ostream &os) const
 
     if (type == "int")
     {
-        os << "i32";
+        printer->Int();
     }
     return Operand();
 }
@@ -193,6 +198,10 @@ Operand BlockAST::Dump(std::ostream &os) const
             symbol_tables->DeleteSymbolTable();
             return return_val;
         }
+        if (return_val.IsLoopInterruption())
+        {
+            return return_val;
+        }
     }
     symbol_tables->DeleteSymbolTable();
     return Operand();
@@ -207,6 +216,18 @@ Operand BlockItemAST::Dump(std::ostream &os) const
     return decl_or_stmt->Dump(os);
 }
 
+std::string StmtAST::branch_then = "then";
+
+std::string StmtAST::branch_else = "else";
+
+std::string StmtAST::branch_end = "end";
+
+std::string StmtAST::loop_entry = "loop_entry";
+
+std::string StmtAST::loop_body = "loop_body";
+
+std::string StmtAST::loop_end = "loop_end";
+
 Operand StmtAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
@@ -220,12 +241,11 @@ Operand StmtAST::Dump(std::ostream &os) const
 #endif
         if (exp)
         {
-            Operand operand = exp->Dump(os);
-            os << "\tret " << operand << "\n";
+            printer->RetV(exp->Dump(os));
         }
         else
         {
-            os << "\tret\n";
+            printer->Ret();
         }
         return Operand().SetAsReturnMark();
     }
@@ -239,7 +259,7 @@ Operand StmtAST::Dump(std::ostream &os) const
         std::string val_name = ((LValAST *)(lval_or_block.get()))->ident;
         Symbol symbol = symbol_tables->Get(val_name);
         assert(symbol.type == Symbol::VAR && symbol.val);
-        os << "\tstore " << operand << ", @" << val_name << "_" << symbol.val << "\n";
+        printer->Store(operand, symbol_tables->Mark(val_name, symbol.val), false);
     }
 
     else if (type == EXP && exp)
@@ -278,81 +298,107 @@ Operand StmtAST::Dump(std::ostream &os) const
         }
 
         int branch_mark = symbol_tables->NewBranchMark();
-        std::string label_then = "%then_" + std::to_string(branch_mark);
-        std::string label_else = "%else_" + std::to_string(branch_mark);
-        std::string label_end = "%end_" + std::to_string(branch_mark);
+        std::string label_then = symbol_tables->Mark(branch_then, branch_mark);
+        std::string label_else = symbol_tables->Mark(branch_else, branch_mark);
+        std::string label_end = symbol_tables->Mark(branch_end, branch_mark);
 
-        os << "\tbr " << cond << ", " << label_then << ", " << (else_stmt ? label_else : label_end) << "\n";
+        printer->Br(cond, label_then, (else_stmt ? label_else : label_end));
 
-        os << label_then << ":\n";
+        printer->Label(label_then);
         Operand then_returned = stmt->Dump(os);
-        if (!then_returned.IsReturnMark())
+        if (then_returned.IsNormal())
         {
-            os << "\tjump " << label_end << "\n";
+            printer->Jump(label_end);
         }
 
         Operand else_returned = Operand();
         if (else_stmt)
         {
-            os << label_else << ":\n";
+            printer->Label(label_else);
             else_returned = else_stmt->Dump(os);
-            if (!else_returned.IsReturnMark())
+            if (else_returned.IsNormal())
             {
-                os << "\tjump " << label_end << "\n";
+                printer->Jump(label_end);
             }
         }
 
-        if (then_returned.IsReturnMark() && else_returned.IsReturnMark())
+        if (then_returned.IsNormal() || else_returned.IsNormal())
+        {
+            printer->Label(label_end);
+        }
+        else if (then_returned.IsReturnMark() && else_returned.IsReturnMark())
         {
             return Operand().SetAsReturnMark();
         }
         else
         {
-            os << label_end << ":\n";
+            return Operand().SetAsLoopInterruption();
         }
     }
 
     else if (type == WHILE)
     {
 #ifdef DEBUG
-        debug << "Stmt - WHILE\n";
+        debug << "\tStmt - WHILE\n";
 #endif
         int branch_mark = symbol_tables->NewBranchMark();
-        std::string while_entry = "%while_entry_" + std::to_string(branch_mark);
-        std::string while_body = "%while_body_" + std::to_string(branch_mark);
-        std::string while_end = "%while_end_" + std::to_string(branch_mark);
+        std::string while_entry = symbol_tables->Mark(loop_entry, branch_mark);
+        std::string while_body = symbol_tables->Mark(loop_body, branch_mark);
+        std::string while_end = symbol_tables->Mark(loop_end, branch_mark);
 
-        os << "\tjump " << while_entry << "\n";
-        os << while_entry << ":\n";
+        symbol_tables->PushLoop(branch_mark);
+
+        printer->Jump(while_entry);
+        printer->Label(while_entry);
         Operand cond = exp->Dump(os);
         if (cond.IsReg())
         {
-            os << "\tbr " << cond << ", " << while_body << ", " << while_end << "\n";
+            printer->Br(cond, while_body, while_end);
         }
         else if (cond.ImmValue())
         {
-            os << "\tjump " << while_body << "\n";
+            printer->Jump(while_body);
         }
         else
         {
-            os << "\tjump " << while_end << "\n";
-            os << while_end << ":\n";
+            printer->Jump(while_end);
+            printer->Label(while_end);
             return Operand();
         }
 
-        os << while_body << ":\n";
+        printer->Label(while_body);
         Operand return_val = stmt->Dump(os);
-        if (!return_val.IsReturnMark())
+        if (return_val.IsNormal())
         {
-            os << "\tjump " << while_entry << "\n";
+            printer->Jump(while_entry);
         }
-        else if (!cond.IsReg())
+        else if (!cond.IsReg() && return_val.IsReturnMark())
         {
             return Operand().SetAsReturnMark();
         }
 
-        os << while_end << ":\n";
+        printer->Label(while_end);
+        symbol_tables->PopLoop();
     }
+
+    else if (type == BREAK)
+    {
+#ifdef DEBUG
+        debug << "\tStmt - Break\n";
+#endif
+        printer->Jump(symbol_tables->Mark(loop_end, symbol_tables->GetTopLoop()));
+        return Operand().SetAsLoopInterruption();
+    }
+
+    else if (type == CONTINUE)
+    {
+#ifdef DEBUG
+        debug << "\tStmt - Continue\n";
+#endif
+        printer->Jump(symbol_tables->Mark(loop_entry, symbol_tables->GetTopLoop()));
+        return Operand().SetAsLoopInterruption();
+    }
+
     return Operand();
 }
 
@@ -386,7 +432,7 @@ Operand LValAST::Dump(std::ostream &os) const
     else if (symbol.type == Symbol::VAR)
     {
         Operand var_reg = Operand(Operand::REG);
-        os << "\t" << var_reg << " = load @" << ident << "_" << symbol.val << "\n";
+        printer->Load(var_reg, symbol_tables->Mark(ident, symbol.val), false);
         return var_reg;
     }
     return Operand();
@@ -427,13 +473,13 @@ Operand UnaryExpAST::Dump(std::ostream &os) const
         switch (unary_op[0])
         {
         case '+':
-            os << "\t" << result << " = add 0, " << operand << "\n";
+            printer->Add(result, Operand(), operand);
             break;
         case '-':
-            os << "\t" << result << " = sub 0, " << operand << "\n";
+            printer->Sub(result, Operand(), operand);
             break;
         case '!':
-            os << "\t" << result << " = eq " << operand << ", 0\n";
+            printer->Eq(result, operand, Operand());
             break;
         default:
             assert(false);
@@ -475,13 +521,13 @@ Operand MulExpAST::Dump(std::ostream &os) const
         switch (mul_op[0])
         {
         case '*':
-            os << "\t" << result << " = mul " << left << ", " << right << "\n";
+            printer->Mul(result, left, right);
             break;
         case '/':
-            os << "\t" << result << " = div " << left << ", " << right << "\n";
+            printer->Div(result, left, right);
             break;
         case '%':
-            os << "\t" << result << " = mod " << left << ", " << right << "\n";
+            printer->Mod(result, left, right);
             break;
         default:
             assert(false);
@@ -523,10 +569,10 @@ Operand AddExpAST::Dump(std::ostream &os) const
         switch (add_op[0])
         {
         case '+':
-            os << "\t" << result << " = add " << left << ", " << right << "\n";
+            printer->Add(result, left, right);
             break;
         case '-':
-            os << "\t" << result << " = sub " << left << ", " << right << "\n";
+            printer->Sub(result, left, right);
             break;
         default:
             assert(false);
@@ -566,19 +612,19 @@ Operand RelExpAST::Dump(std::ostream &os) const
         Operand result = Operand(Operand::REG);
         if (rel_op == "<")
         {
-            os << "\t" << result << " = lt " << left << ", " << right << "\n";
+            printer->Lt(result, left, right);
         }
         else if (rel_op == ">")
         {
-            os << "\t" << result << " = gt " << left << ", " << right << "\n";
+            printer->Gt(result, left, right);
         }
         else if (rel_op == "<=")
         {
-            os << "\t" << result << " = le " << left << ", " << right << "\n";
+            printer->Le(result, left, right);
         }
         else if (rel_op == ">=")
         {
-            os << "\t" << result << " = ge " << left << ", " << right << "\n";
+            printer->Ge(result, left, right);
         }
         else
         {
@@ -629,11 +675,11 @@ Operand EqExpAST::Dump(std::ostream &os) const
         Operand result = Operand(Operand::REG);
         if (eq_op == "==")
         {
-            os << "\t" << result << " = eq " << left << ", " << right << "\n";
+            printer->Eq(result, left, right);
         }
         else if (eq_op == "!=")
         {
-            os << "\t" << result << " = ne " << left << ", " << right << "\n";
+            printer->Ne(result, left, right);
         }
         else
         {
@@ -659,6 +705,14 @@ Operand EqExpAST::Dump(std::ostream &os) const
     return Operand();
 }
 
+std::string LAndExpAST::and_then = "and_then";
+
+std::string LAndExpAST::and_else = "and_else";
+
+std::string LAndExpAST::and_end = "and_end";
+
+std::string LAndExpAST::and_temp = "and_temp";
+
 Operand LAndExpAST::Dump(std::ostream &os) const
 {
 #ifdef DEBUG
@@ -683,53 +737,63 @@ Operand LAndExpAST::Dump(std::ostream &os) const
         if (right.IsReg())
         {
             Operand result = Operand(Operand::REG);
-            os << "\t" << result << " = ne " << right << ", 0\n";
+            printer->Ne(result, right, Operand());
             return result;
         }
 
-        return Operand(Operand::IMM, right.ImmValue() != 0);
+        return right != 0;
     }
 
     Operand cond = Operand(Operand::REG);
     int branch_mark = symbol_tables->NewBranchMark();
-    std::string and_then = "%and_then_" + std::to_string(branch_mark);
-    std::string and_else = "%and_else_" + std::to_string(branch_mark);
-    std::string and_end = "%and_end_" + std::to_string(branch_mark);
-    std::string and_result = "%and_result_" + std::to_string(branch_mark);
+    std::string label_then = symbol_tables->Mark(and_then, branch_mark);
+    std::string label_else = symbol_tables->Mark(and_else, branch_mark);
+    std::string label_end = symbol_tables->Mark(and_end, branch_mark);
+    std::string temp_result = symbol_tables->Mark(and_temp, branch_mark);
 
-    symbol_tables->InnerBlockRecord(and_result, Symbol(Symbol::VAR));
-    if (!symbol_tables->InterBlockAllocated(and_result))
+    symbol_tables->InnerBlockRecord(temp_result, Symbol(Symbol::VAR));
+    if (!symbol_tables->InterBlockAllocated(temp_result))
     {
-        os << "\t" << and_result << " = alloc i32\n";
-        symbol_tables->InterBlockAllocate(and_result);
+        printer->Alloc(temp_result);
+        printer->Int();
+        printer->NewLine();
+        symbol_tables->InterBlockAllocate(temp_result);
     }
-    os << "\t" << cond << " = ne " << left << ", 0\n";
-    os << "\tbr " << cond << ", " << and_then << ", " << and_else << "\n";
+    printer->Ne(cond, left, Operand());
+    printer->Br(cond, label_then, label_else);
 
-    os << and_then << ":\n";
+    printer->Label(label_then);
     Operand right = eq_exp->Dump(os);
     if (right.IsReg())
     {
         Operand temp = Operand(Operand::REG);
-        os << "\t" << temp << " = ne " << right << ", 0\n";
-        os << "\tstore " << temp << ", " << and_result << "\n";
+        printer->Ne(temp, right, Operand());
+        printer->Store(temp, temp_result);
     }
     else
     {
-        os << "\tstore " << (right.ImmValue() != 0) << ", " << and_result << "\n";
+        printer->Store(right != 0, temp_result);
     }
-    os << "\tjump " << and_end << "\n";
+    printer->Jump(label_end);
 
-    os << and_else << ":\n";
-    os << "\tstore 0, " << and_result << "\n";
-    os << "\tjump " << and_end << "\n";
+    printer->Label(label_else);
+    printer->Store(Operand(), temp_result);
+    printer->Jump(label_end);
 
-    os << and_end << ":\n";
+    printer->Label(label_end);
     Operand result = Operand(Operand::REG);
-    os << "\t" << result << " = load " << and_result << "\n";
+    printer->Load(result, temp_result);
 
     return result;
 }
+
+std::string LOrExpAST::or_then = "or_then";
+
+std::string LOrExpAST::or_else = "or_else";
+
+std::string LOrExpAST::or_end = "or_end";
+
+std::string LOrExpAST::or_temp = "or_temp";
 
 Operand LOrExpAST::Dump(std::ostream &os) const
 {
@@ -745,7 +809,7 @@ Operand LOrExpAST::Dump(std::ostream &os) const
     Operand left = lor_exp->Dump(os);
     if (!left.IsReg())
     {
-        if (left.ImmValue() != 0)
+        if (left.ImmValue())
         {
             return Operand(Operand::IMM, 1);
         }
@@ -754,50 +818,52 @@ Operand LOrExpAST::Dump(std::ostream &os) const
         if (right.IsReg())
         {
             Operand result = Operand(Operand::REG);
-            os << "\t" << result << " = ne " << right << ", 0\n";
+            printer->Ne(result, right, Operand());
             return result;
         }
 
-        return Operand(Operand::IMM, right.ImmValue() != 0);
+        return right != 0;
     }
 
     Operand cond = Operand(Operand::REG);
     int branch_mark = symbol_tables->NewBranchMark();
-    std::string or_then = "%or_then_" + std::to_string(branch_mark);
-    std::string or_else = "%or_else_" + std::to_string(branch_mark);
-    std::string or_end = "%or_end_" + std::to_string(branch_mark);
-    std::string or_result = "%or_result_" + std::to_string(branch_mark);
+    std::string label_then = symbol_tables->Mark(or_then, branch_mark);
+    std::string label_else = symbol_tables->Mark(or_else, branch_mark);
+    std::string label_end = symbol_tables->Mark(or_end, branch_mark);
+    std::string temp_result = symbol_tables->Mark(or_temp, branch_mark);
 
-    symbol_tables->InnerBlockRecord(or_result, Symbol(Symbol::VAR));
-    if (!symbol_tables->InterBlockAllocated(or_result))
+    symbol_tables->InnerBlockRecord(temp_result, Symbol(Symbol::VAR));
+    if (!symbol_tables->InterBlockAllocated(temp_result))
     {
-        os << "\t" << or_result << " = alloc i32\n";
-        symbol_tables->InterBlockAllocate(or_result);
+        printer->Alloc(temp_result);
+        printer->Int();
+        printer->NewLine();
+        symbol_tables->InterBlockAllocate(temp_result);
     }
-    os << "\t" << cond << " = ne " << left << ", 0\n";
-    os << "\tbr " << cond << ", " << or_then << ", " << or_else << "\n";
+    printer->Ne(cond, left, Operand());
+    printer->Br(cond, label_then, label_else);
 
-    os << or_then << ":\n";
-    os << "\tstore 1, " << or_result << "\n";
-    os << "\tjump " << or_end << "\n";
+    printer->Label(label_then);
+    printer->Store(Operand(Operand::IMM, 1), temp_result);
+    printer->Jump(label_end);
 
-    os << or_else << ":\n";
+    printer->Label(label_else);
     Operand right = land_exp->Dump(os);
     if (right.IsReg())
     {
         Operand temp = Operand(Operand::REG);
-        os << "\t" << temp << " = ne " << right << ", 0\n";
-        os << "\tstore " << temp << ", " << or_result << "\n";
+        printer->Ne(temp, right, Operand());
+        printer->Store(temp, temp_result);
     }
     else
     {
-        os << "\tstore " << (right.ImmValue() != 0) << ", " << or_result << "\n";
+        printer->Store(right != 0, temp_result);
     }
-    os << "\tjump " << or_end << "\n";
+    printer->Jump(label_end);
 
-    os << or_end << ":\n";
+    printer->Label(label_end);
     Operand result = Operand(Operand::REG);
-    os << "\t" << result << " = load " << or_result << "\n";
+    printer->Load(result, temp_result);
 
     return result;
 }
