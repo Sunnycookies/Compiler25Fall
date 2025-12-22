@@ -12,7 +12,7 @@ void KoopaCode::SetOstream(std::ostream &os)
 
 void KoopaCode::EndCurBrac()
 {
-    *pos << "}\n\n";
+    *pos << "}\n";
 }
 
 void KoopaCode::Type(const BType::data_type &type)
@@ -20,9 +20,11 @@ void KoopaCode::Type(const BType::data_type &type)
     switch (type)
     {
     case BType::INT:
-        *pos << " i32";
+        *pos << "i32";
         return;
-    
+    case BType::ARRAY:
+        *pos << "*i32";
+        return;
     case BType::VOID:
     default:
         return;
@@ -32,12 +34,12 @@ void KoopaCode::Type(const BType::data_type &type)
 void KoopaCode::PreFunc(const std::string &func)
 {
     bool flag = true;
-    *pos << "fun @" << func << "(";
+    *pos << "\nfun @" << func << "(";
 }
 
 void KoopaCode::FParam(const BType::data_type &type, const std::string &ident, const bool &comma)
 {
-    *pos << (comma ? ", " : "") << "@" << ident << ":";
+    *pos << (comma ? ", " : "") << "@" << ident << ": ";
     Type(type);
 }
 
@@ -48,7 +50,7 @@ void KoopaCode::StoreFParam(const std::string &temp, const std::string &fparam)
 
 void KoopaCode::PostFunc(const BType::data_type &type)
 {
-    *pos << ")" << (type == BType::VOID ? "" : ":");
+    *pos << ")" << (type == BType::VOID ? "" : ": ");
     Type(type);
     *pos << " {\n";
 }
@@ -58,9 +60,31 @@ void KoopaCode::Label(const std::string &label)
     *pos << "%" << label << ":\n";
 }
 
+void KoopaCode::DeclFunc(const std::string &ident, const std::deque<BType::data_type> &params, const BType::data_type &ret_type)
+{
+    *pos << "decl @" << ident << "(";
+    bool comma = false;
+    for (int i = 0, n = params.size(); i < n; ++i)
+    {
+        if (comma)
+        {
+            *pos << ", ";
+        }
+        Type(params[i]);
+        comma = true;
+    }
+    *pos << ")";
+    if (ret_type != BType::VOID)
+    {
+        *pos << ": ";
+        Type(ret_type);
+    }
+    *pos << "\n";
+}
+
 void KoopaCode::Alloc(const std::string &var, const BType::data_type &type, const bool &temp)
 {
-    *pos << "\t" << (temp ? "%" : "@") << var << " = alloc";
+    *pos << "\t" << (temp ? "%" : "@") << var << " = alloc ";
     Type(type);
     *pos << "\n";
 }

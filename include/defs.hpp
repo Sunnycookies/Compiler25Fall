@@ -21,5 +21,6 @@ public:
     {
         VOID,
         INT,
+        ARRAY,
     };
 };

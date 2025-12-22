@@ -21,6 +21,7 @@ public:
     void FParam(const BType::data_type &type, const std::string &ident, const bool &comma = false);
     void StoreFParam(const std::string &temp, const std::string &fparam);
     void PostFunc(const BType::data_type &type);
+    void DeclFunc(const std::string &ident, const std::deque<BType::data_type> &params, const BType::data_type &ret_type);
     void Alloc(const std::string &var, const BType::data_type &type, const bool &temp = true);
     void Store(const Operand &reg_or_imm, const std::string &var, const bool &temp = true);
     void Load(const Operand &reg, const std::string &var, const bool &temp = true);

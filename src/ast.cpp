@@ -22,6 +22,22 @@ Operand ProgramAST::Dump() const
 #endif
 
     symbol_tables->NewSymbolTable();
+    printer->DeclFunc("getint", std::deque<BType::data_type>(), BType::INT);
+    printer->DeclFunc("getch", std::deque<BType::data_type>(), BType::INT);
+    printer->DeclFunc("getarray", std::deque<BType::data_type>({BType::ARRAY}), BType::INT);
+    printer->DeclFunc("putint", std::deque<BType::data_type>({BType::INT}), BType::VOID);
+    printer->DeclFunc("putch", std::deque<BType::data_type>({BType::INT}), BType::VOID);
+    printer->DeclFunc("putarray", std::deque<BType::data_type>({BType::INT, BType::ARRAY}), BType::VOID);
+    printer->DeclFunc("starttime", std::deque<BType::data_type>(), BType::VOID);
+    printer->DeclFunc("stoptime", std::deque<BType::data_type>(), BType::VOID);
+    symbol_tables->RecordSymbol("getint", Symbol(Symbol::FUNC, BType::INT));
+    symbol_tables->RecordSymbol("getch", Symbol(Symbol::FUNC, BType::INT));
+    symbol_tables->RecordSymbol("getarray", Symbol(Symbol::FUNC, BType::INT));
+    symbol_tables->RecordSymbol("putint", Symbol(Symbol::FUNC, BType::VOID));
+    symbol_tables->RecordSymbol("putch", Symbol(Symbol::FUNC, BType::VOID));
+    symbol_tables->RecordSymbol("putarray", Symbol(Symbol::FUNC, BType::VOID));
+    symbol_tables->RecordSymbol("starttime", Symbol(Symbol::FUNC, BType::VOID));
+    symbol_tables->RecordSymbol("stoptime", Symbol(Symbol::FUNC, BType::VOID));
     for (int i = 0, n = comp_units.size(); i < n; ++i)
     {
         comp_units[i]->Dump();
