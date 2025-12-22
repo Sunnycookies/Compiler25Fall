@@ -30,23 +30,47 @@ using namespace std;
   std::deque<std::unique_ptr<BaseAST>> *deque_val;
 }
 
-%token INT RETURN CONST IF ELSE WHILE BREAK CONTINUE
+%token INT VOID RETURN CONST IF ELSE WHILE BREAK CONTINUE
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 %token <str_val> NOT_OP ADD_OP MUL_OP REL_OP EQ_OP AND_OP OR_OP
 
-%type <ast_val> FuncDef FuncType Block BlockItem Stmt MatchedStmt UnmatchedStmt
+%type <ast_val> CompUnit
+%type <ast_val> Decl ConstDecl ConstDef ConstInitVal VarDecl VarDef InitVal
+%type <ast_val> FuncDef FuncFParam 
+%type <ast_val> Block BlockItem Stmt MatchedStmt UnmatchedStmt
 %type <ast_val> Exp LVal PrimaryExp Number UnaryExp MulExp AddExp RelExp EqExp LAndExp LOrExp ConstExp
-%type <ast_val> Decl ConstDecl BType ConstDef ConstInitVal VarDecl VarDef InitVal
-%type <deque_val> AnyBlockItem MoreConstDef MoreVarDef
+%type <deque_val> AnyBlockItem MoreConstDef MoreVarDef MoreCompUnit FuncFParams FuncRParams
 
 %%
 
+Program
+  : CompUnit MoreCompUnit {
+    auto program = make_unique<ProgramAST>();
+    deque<unique_ptr<BaseAST>> *comp_units = $2;
+    comp_units->push_front(unique_ptr<BaseAST>($1));
+    program->comp_units = move(*comp_units);
+    ast = move(program);
+  }
+  ;
+
+MoreCompUnit
+  : CompUnit MoreCompUnit {
+    deque<unique_ptr<BaseAST>> *comp_units = $2;
+    comp_units->push_front(unique_ptr<BaseAST>($1));
+    $$ = comp_units;
+  }
+  | {
+    $$ = new deque<unique_ptr<BaseAST>>;
+  }
+  ;
+
 CompUnit
   : FuncDef {
-    auto comp_unit = make_unique<CompUnitAST>();
-    comp_unit->func_def = unique_ptr<BaseAST>($1);
-    ast = move(comp_unit);
+    auto ast = new CompUnitAST();
+    ast->type = CompUnitAST::FUNC;
+    ast->func_def_or_decl = unique_ptr<BaseAST>($1);
+    $$ = ast;
   }
   ;
 
@@ -64,19 +88,12 @@ Decl
   ;
 
 ConstDecl
-  : CONST BType ConstDef MoreConstDef ';' {
+  : CONST INT ConstDef MoreConstDef ';' {
     auto ast = new ConstDeclAST;
-    ast->b_type = unique_ptr<BaseAST>($2);
+    ast->type = BType::INT;
     deque<unique_ptr<BaseAST>> *const_defs = $4;
     const_defs->push_front(unique_ptr<BaseAST>($3));
     ast->const_defs = move(*const_defs);
-    $$ = ast;
-  }
-
-BType
-  : INT {
-    auto ast = new BTypeAST();
-    ast->type = "int";
     $$ = ast;
   }
   ;
@@ -110,9 +127,9 @@ ConstInitVal
   ;
 
 VarDecl
-  : BType VarDef MoreVarDef ';' {
+  : INT VarDef MoreVarDef ';' {
     auto ast = new VarDeclAST();
-    ast->b_type = unique_ptr<BaseAST>($1);
+    ast->b_type = BType::INT;
     deque<unique_ptr<BaseAST>> *var_defs = $3;
     var_defs->push_front(unique_ptr<BaseAST>($2));
     ast->var_defs = move(*var_defs);
@@ -156,19 +173,47 @@ InitVal
   ;
 
 FuncDef
-  : FuncType IDENT '(' ')' Block {
+  : INT IDENT '(' FuncFParams ')' Block {
     auto ast = new FuncDefAST();
-    ast->func_type = unique_ptr<BaseAST>($1);
+    ast->func_type = BType::INT;
     ast->ident = *unique_ptr<string>($2);
-    ast->block = unique_ptr<BaseAST>($5);
+    deque<unique_ptr<BaseAST>> *params = $4;
+    ast->params = move(*params);
+    ast->block = unique_ptr<BaseAST>($6);
+    $$ = ast;
+  }
+  | VOID IDENT '(' FuncFParams ')' Block {
+    auto ast = new FuncDefAST();
+    ast->func_type = BType::VOID;
+    ast->ident = *unique_ptr<string>($2);
+    deque<unique_ptr<BaseAST>> *params = $4;
+    ast->params = move(*params);
+    ast->block = unique_ptr<BaseAST>($6);
     $$ = ast;
   }
   ;
 
-FuncType
-  : INT {
-    auto ast = new FuncTypeAST();
-    ast->type = "int";
+FuncFParams
+  : FuncFParam ',' FuncFParams {
+    deque<unique_ptr<BaseAST>> *params = $3;
+    params->push_front(unique_ptr<BaseAST>($1));
+    $$ = params;
+  }
+  | FuncFParam {
+    deque<unique_ptr<BaseAST>> *fparam = new deque<unique_ptr<BaseAST>>;
+    fparam->push_front(unique_ptr<BaseAST>($1));
+    $$ = fparam;
+  }
+  | {
+    $$ = new deque<unique_ptr<BaseAST>>;
+  }
+  ;
+
+FuncFParam
+  : INT IDENT {
+    auto ast = new FuncFParamAST();
+    ast->type = BType::INT;
+    ast->ident = *unique_ptr<string>($2);
     $$ = ast;
   }
   ;
@@ -228,6 +273,13 @@ UnmatchedStmt
     ast->exp = unique_ptr<BaseAST>($3);
     ast->stmt = unique_ptr<BaseAST>($5);
     ast->else_stmt = unique_ptr<BaseAST>($7);
+    $$ = ast;
+  }
+  | WHILE '(' Exp ')' UnmatchedStmt {
+    auto ast = new StmtAST();
+    ast->type = StmtAST::WHILE;
+    ast->exp = unique_ptr<BaseAST>($3);
+    ast->stmt = unique_ptr<BaseAST>($5);
     $$ = ast;
   }
   ;
@@ -347,16 +399,40 @@ UnaryExp
   | NOT_OP UnaryExp {
     auto ast = new UnaryExpAST();
     ast->type = UnaryExpAST::UNARY_EXP;
-    ast->unary_op = *unique_ptr<string>($1);
+    ast->op_or_func = *unique_ptr<string>($1);
     ast->primary_or_unary_exp = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
   | ADD_OP UnaryExp {
     auto ast = new UnaryExpAST();
     ast->type = UnaryExpAST::UNARY_EXP;
-    ast->unary_op = *unique_ptr<string>($1);
+    ast->op_or_func = *unique_ptr<string>($1);
     ast->primary_or_unary_exp = unique_ptr<BaseAST>($2);
     $$ = ast;
+  }
+  | IDENT '(' FuncRParams ')' {
+    auto ast = new UnaryExpAST();
+    ast->type = UnaryExpAST::CALL_FUNC;
+    ast->op_or_func = *unique_ptr<string>($1);
+    deque<unique_ptr<BaseAST>> *params = $3;
+    ast->params = move(*params);
+    $$ = ast;
+  }
+  ;
+
+FuncRParams
+  : Exp ',' FuncRParams {
+    deque<unique_ptr<BaseAST>> *exps = $3;
+    exps->push_front(unique_ptr<BaseAST>($1));
+    $$ = exps;
+  }
+  | Exp {
+    deque<unique_ptr<BaseAST>> *exps = new deque<unique_ptr<BaseAST>>;
+    exps->push_front(unique_ptr<BaseAST>($1));
+    $$ = exps;
+  }
+  | {
+    $$ = new deque<unique_ptr<BaseAST>>;
   }
   ;
 

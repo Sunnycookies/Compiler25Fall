@@ -38,12 +38,12 @@ int Operand::ImmValue()
     return value.imm_value;
 }
 
-bool Operand::IsReg()
+bool Operand::IsReg() const
 {
     return type == REG;
 }
 
-bool Operand::IsNormal()
+bool Operand::IsNormal() const
 {
     return type == IMM || value.reg_no >= 0;
 }

@@ -6,6 +6,19 @@ Symbol::Symbol(const symbol_type &t, const int &v)
     val = v;
 }
 
+Symbol::Symbol(const symbol_type &t, const BType::data_type &ret_type)
+{
+    assert(t == FUNC);
+    type = t;
+    val = ret_type;
+}
+
+BType::data_type Symbol::FuncRetType()
+{
+    assert(type == FUNC);
+    return BType::data_type(val);
+}
+
 SymbolTables *SymbolTables::pSymbolTables = nullptr;
 
 SymbolTables *symbol_tables = SymbolTables::GetSymbolTables();
@@ -20,41 +33,22 @@ SymbolTables *SymbolTables::GetSymbolTables()
     return pSymbolTables;
 }
 
-void SymbolTables::NewSymbolTable()
+void SymbolTables::NewSymbolTable(const bool &clear_local)
 {
-    sym_tables.push_back(std::unordered_map<std::string, Symbol>());
-}
-
-void SymbolTables::DeleteSymbolTable()
-{
-    sym_tables.pop_back();
-}
-
-void SymbolTables::InnerBlockRecord(const std::string &ident, const Symbol &value)
-{
-    assert(sym_tables.back().find(ident) == sym_tables.back().end());
-    sym_tables.back()[ident] = value;
-}
-
-Symbol SymbolTables::Get(const std::string &ident)
-{
-    for (int i = sym_tables.size() - 1; i >= 0; --i)
+    vert_symtabs.push_back(symbol_table_t());
+    if (clear_local)
     {
-        if (sym_tables[i].find(ident) != sym_tables[i].end())
-        {
-            Symbol sym = sym_tables[i][ident];
-            if (sym.type == Symbol::CONST)
-            {
-                return sym;
-            }
-            else if (sym.type == Symbol::VAR)
-            {
-                return Symbol(Symbol::VAR, i + 1);
-            }
-        }
+        func_inner_syms.clear();
     }
-    assert(false);
-    return Symbol(Symbol::VAR);
+}
+
+void SymbolTables::DeleteSymbolTable(const bool &clear_local)
+{
+    vert_symtabs.pop_back();
+    if (clear_local)
+    {
+        func_inner_syms.clear();
+    }
 }
 
 std::string SymbolTables::Mark(const std::string &name, const int &mark)
@@ -62,14 +56,45 @@ std::string SymbolTables::Mark(const std::string &name, const int &mark)
     return name + "_" + std::to_string(mark);
 }
 
-void SymbolTables::InterBlockAllocate(const std::string &ident)
+void SymbolTables::RecordSymbol(const std::string &ident, const Symbol &value)
 {
-    sym_allocated[std::make_pair(ident, sym_tables.size())] = true;
+    assert(vert_symtabs.back().find(ident) == vert_symtabs.back().end());
+    vert_symtabs.back()[ident] = value;
 }
 
-bool SymbolTables::InterBlockAllocated(const std::string &ident)
+Symbol SymbolTables::GetSymbol(const std::string &ident)
 {
-    return sym_allocated[std::make_pair(ident, sym_tables.size())];
+    for (int i = vert_symtabs.size() - 1; i >= 0; --i)
+    {
+        if (vert_symtabs[i].find(ident) != vert_symtabs[i].end())
+        {
+            Symbol sym = vert_symtabs[i][ident];
+            if (sym.type == Symbol::CONST || sym.type == Symbol::FUNC)
+            {
+                return sym;
+            }
+            else if (sym.type == Symbol::VAR)
+            {
+                return Symbol(Symbol::VAR, i);
+            }
+            else if (sym.type == Symbol::PARAM)
+            {
+                return Symbol(Symbol::PARAM, i);
+            }
+        }
+    }
+    assert(false);
+    return Symbol(Symbol::VAR, -1);
+}
+
+void SymbolTables::LocalAllocate(const std::string &ident)
+{
+    func_inner_syms.insert(local_symbol_t(ident, vert_symtabs.size()));
+}
+
+bool SymbolTables::LocalAllocated(const std::string &ident)
+{
+    return func_inner_syms.count(local_symbol_t(ident, vert_symtabs.size()));
 }
 
 int SymbolTables::NewBranchMark()

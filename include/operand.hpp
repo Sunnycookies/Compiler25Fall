@@ -23,8 +23,8 @@ public:
     Operand(const operand_type &t, const int &v = 0);
     ~Operand();
     int ImmValue();
-    bool IsReg();
-    bool IsNormal();
+    bool IsReg() const;
+    bool IsNormal() const;
     Operand &SetAsReturnMark();
     bool IsReturnMark();
     Operand &SetAsLoopInterruption();

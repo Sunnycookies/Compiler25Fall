@@ -5,7 +5,7 @@ KoopaCode *BaseAST::printer = new KoopaCode();
 std::ostream &operator<<(std::ostream &os, const BaseAST &ast)
 {
     ast.printer->SetOstream(os);
-    ast.Dump(os);
+    ast.Dump();
     return os;
 }
 
@@ -15,13 +15,28 @@ std::ostream &operator<<(std::ostream &os, const BaseAST &ast)
 =================================================
 */
 
-Operand CompUnitAST::Dump(std::ostream &os) const
+Operand ProgramAST::Dump() const
+{
+#ifdef DEBUG
+    debug << "Program Dump\n";
+#endif
+
+    symbol_tables->NewSymbolTable();
+    for (int i = 0, n = comp_units.size(); i < n; ++i)
+    {
+        comp_units[i]->Dump();
+    }
+    symbol_tables->DeleteSymbolTable();
+    return Operand();
+}
+
+Operand CompUnitAST::Dump() const
 {
 #ifdef DEBUG
     debug << "CompUnitAST Dump\n";
 #endif
 
-    func_def->Dump(os);
+    func_def_or_decl->Dump();
     return Operand();
 }
 
@@ -31,112 +46,94 @@ Operand CompUnitAST::Dump(std::ostream &os) const
 =================================================
 */
 
-Operand DeclAST::Dump(std::ostream &os) const
+Operand DeclAST::Dump() const
 {
 #ifdef DEBUG
     debug << "Decl Dump\n";
 #endif
 
-    const_or_var_decl->Dump(os);
+    const_or_var_decl->Dump();
     return Operand();
 }
 
-Operand ConstDeclAST::Dump(std::ostream &os) const
+Operand ConstDeclAST::Dump() const
 {
 #ifdef DEBUG
     debug << "ConstDecl Dump\n";
 #endif
 
-    for (size_t i = 0, len = const_defs.size(); i < len; ++i)
+    for (int i = 0, n = const_defs.size(); i < n; ++i)
     {
-        Operand const_value = const_defs[i]->Dump(os);
+        Operand const_value = const_defs[i]->Dump();
     }
     return Operand();
 }
 
-Operand BTypeAST::Dump(std::ostream &os) const
-{
-#ifdef DEBUG
-    debug << "BType Dump\n";
-#endif
-
-    printer->Int();
-    return Operand();
-}
-
-Operand ConstDefAST::Dump(std::ostream &os) const
+Operand ConstDefAST::Dump() const
 {
 #ifdef DEBUG
     debug << "ConstDef Dump\n";
 #endif
 
-    Operand const_val = const_init_val->Dump(os);
-    symbol_tables->InnerBlockRecord(ident, Symbol(Symbol::CONST, const_val.ImmValue()));
+    Operand const_val = const_init_val->Dump();
+    symbol_tables->RecordSymbol(ident, Symbol(Symbol::CONST, const_val.ImmValue()));
     return Operand();
 }
 
-Operand ConstInitValAST::Dump(std::ostream &os) const
+Operand ConstInitValAST::Dump() const
 {
 #ifdef DEBUG
     debug << "ConstInitVal Dump\n";
 #endif
 
-    return const_exp->Dump(os);
+    return const_exp->Dump();
 }
 
-Operand VarDeclAST::Dump(std::ostream &os) const
+Operand VarDeclAST::Dump() const
 {
 #ifdef DEBUG
     debug << "VarDecl Dump\n";
 #endif
 
-    for (size_t i = 0, len = var_defs.size(); i < len; ++i)
+    for (int i = 0, n = var_defs.size(); i < n; ++i)
     {
-        ((VarDefAST *)(var_defs[i].get()))->DumpWithType(os, *b_type);
+        VarDefAST::current_type = b_type;
+        var_defs[i]->Dump();
     }
     return Operand();
 }
 
-Operand VarDefAST::Dump(std::ostream &os) const
+BType::data_type VarDefAST::current_type = BType::VOID;
+
+Operand VarDefAST::Dump() const
 {
 #ifdef DEBUG
     debug << "VarDef Dump\n";
 #endif
 
+    symbol_tables->RecordSymbol(ident, Symbol(Symbol::VAR));
+    if (!symbol_tables->LocalAllocated(ident))
+    {
+        Symbol symbol = symbol_tables->GetSymbol(ident);
+        printer->Alloc(symbol_tables->Mark(ident, symbol.val), current_type, false);
+        symbol_tables->LocalAllocate(ident);
+    }
     if (type == INITVAL)
     {
-        Operand val = init_val->Dump(os);
-        Symbol symbol = symbol_tables->Get(ident);
+        Operand val = init_val->Dump();
+        Symbol symbol = symbol_tables->GetSymbol(ident);
         printer->Store(val, symbol_tables->Mark(ident, symbol.val), false);
     }
     return Operand();
 }
 
-Operand VarDefAST::DumpWithType(std::ostream &os, const BaseAST &type) const
-{
-#ifdef DEBUG
-    debug << "VarDef DumpWithType\n";
-#endif
-
-    symbol_tables->InnerBlockRecord(ident, Symbol(Symbol::VAR));
-    if (!symbol_tables->InterBlockAllocated(ident))
-    {
-        Symbol symbol = symbol_tables->Get(ident);
-        printer->Alloc(symbol_tables->Mark(ident, symbol.val), false);
-        os << type;
-        printer->NewLine();
-        symbol_tables->InterBlockAllocate(ident);
-    }
-    return Dump(os);
-}
-
-Operand InitValAST::Dump(std::ostream &os) const
+Operand InitValAST::Dump() const
 {
 #ifdef DEBUG
     debug << "InitVal Dump\n";
 #endif
 
-    return exp->Dump(os);
+    return exp->Dump();
 }
 
 /*
@@ -145,35 +142,68 @@ Operand InitValAST::Dump(std::ostream &os) const
 =================================================
 */
 
-Operand FuncDefAST::Dump(std::ostream &os) const
+Operand FuncDefAST::Dump() const
 {
 #ifdef DEBUG
     debug << "FuncDef Dump\n";
 #endif
 
-    os << "fun @" << ident << "(): ";
-    func_type->Dump(os);
-    printer->FrontCurBrac();
+    symbol_tables->RecordSymbol(ident, Symbol(Symbol::FUNC, func_type));
+    symbol_tables->NewSymbolTable(true);
+    printer->PreFunc(ident);
+    FuncFParamAST::comma = false;
+    for (int i = 0, n = params.size(), comma; i < n; ++i)
+    {
+        params[i]->Dump();
+        FuncFParamAST::comma = true;
+    }
+    printer->PostFunc(func_type);
     printer->Label("entry");
-    Operand return_val = block->Dump(os);
+    for (int i = 0, n = params.size(); i < n; ++i)
+    {
+        ((FuncFParamAST *)(params[i].get()))->Allocate();
+    }
+    Operand return_val = block->Dump();
     if (!return_val.IsReturnMark())
     {
-        printer->RetV(Operand());
+        if (func_type == BType::INT)
+        {
+            printer->Ret(Operand());
+        }
+        else if (func_type == BType::VOID)
+        {
+            printer->Ret(Operand().SetAsReturnMark());
+        }
     }
     printer->EndCurBrac();
+    symbol_tables->DeleteSymbolTable(true);
     return Operand();
 }
 
-Operand FuncTypeAST::Dump(std::ostream &os) const
+bool FuncFParamAST::comma = false;
+
+Operand FuncFParamAST::Dump() const
 {
 #ifdef DEBUG
-    debug << "FuncType Dump\n";
+    debug << "FuncFParam Dump\n";
 #endif
 
-    if (type == "int")
-    {
-        printer->Int();
-    }
+    printer->FParam(type, ident, comma);
+    return Operand();
+}
+
+Operand FuncFParamAST::Allocate() const
+{
+#ifdef DEBUG
+    debug << "FuncFParam Allocate\n";
+#endif
+
+    symbol_tables->RecordSymbol(ident, Symbol(Symbol::PARAM));
+    Symbol symbol = symbol_tables->GetSymbol(ident);
+    std::string val_name = symbol_tables->Mark(ident, symbol.val);
+    printer->Alloc(val_name, type);
+    printer->StoreFParam(val_name, ident);
+    symbol_tables->LocalAllocate(symbol_tables->Mark(ident, symbol.val));
     return Operand();
 }
 
@@ -183,33 +213,48 @@ Operand FuncTypeAST::Dump(std::ostream &os) const
 =================================================
 */
 
-Operand BlockAST::Dump(std::ostream &os) const
+bool BlockAST::new_symbol_table = false;
+
+Operand BlockAST::Dump() const
 {
 #ifdef DEBUG
     debug << "Block Dump\n";
 #endif
 
-    symbol_tables->NewSymbolTable();
-    for (size_t i = 0, len = block_items.size(); i < len; ++i)
+    bool create_table = new_symbol_table;
+    if (create_table)
     {
-        Operand return_val = block_items[i]->Dump(os);
+        symbol_tables->NewSymbolTable();
+    }
+    new_symbol_table = true;
+    for (int i = 0, n = block_items.size(); i < n; ++i)
+    {
+        Operand return_val = block_items[i]->Dump();
         if (!return_val.IsNormal())
         {
-            symbol_tables->DeleteSymbolTable();
+            if (create_table)
+            {
+                symbol_tables->DeleteSymbolTable();
+            }
+            new_symbol_table = create_table;
             return return_val;
         }
     }
-    symbol_tables->DeleteSymbolTable();
+    if (create_table)
+    {
+        symbol_tables->DeleteSymbolTable();
+    }
+    new_symbol_table = create_table;
     return Operand();
 }
 
-Operand BlockItemAST::Dump(std::ostream &os) const
+Operand BlockItemAST::Dump() const
 {
 #ifdef DEBUG
     debug << "BlockItem Dump\n";
 #endif
 
-    return decl_or_stmt->Dump(os);
+    return decl_or_stmt->Dump();
 }
 
 std::string StmtAST::branch_then = "then";
@@ -224,7 +269,7 @@ std::string StmtAST::loop_body = "loop_body";
 
 std::string StmtAST::loop_end = "loop_end";
 
-Operand StmtAST::Dump(std::ostream &os) const
+Operand StmtAST::Dump() const
 {
 #ifdef DEBUG
     debug << "Stmt Dump\n";
@@ -237,11 +282,11 @@ Operand StmtAST::Dump(std::ostream &os) const
 #endif
         if (exp)
         {
-            printer->RetV(exp->Dump(os));
+            printer->Ret(exp->Dump());
         }
         else
         {
-            printer->Ret();
+            printer->Ret(Operand().SetAsReturnMark());
         }
         return Operand().SetAsReturnMark();
     }
@@ -251,10 +296,9 @@ Operand StmtAST::Dump(std::ostream &os) const
 #ifdef DEBUG
         debug << "\tStmt - LVAL\n";
 #endif
-        Operand operand = exp->Dump(os);
+        Operand operand = exp->Dump();
         std::string val_name = ((LValAST *)(lval_or_block.get()))->ident;
-        Symbol symbol = symbol_tables->Get(val_name);
-        assert(symbol.type == Symbol::VAR && symbol.val);
+        Symbol symbol = symbol_tables->GetSymbol(val_name);
         printer->Store(operand, symbol_tables->Mark(val_name, symbol.val), false);
     }
 
@@ -263,7 +307,7 @@ Operand StmtAST::Dump(std::ostream &os) const
 #ifdef DEBUG
         debug << "\tStmt - EXP\n";
 #endif
-        return exp->Dump(os);
+        return exp->Dump();
     }
 
     else if (type == BLOCK)
@@ -271,7 +315,7 @@ Operand StmtAST::Dump(std::ostream &os) const
 #ifdef DEBUG
         debug << "\tStmt - BLOCK\n";
 #endif
-        return lval_or_block->Dump(os);
+        return lval_or_block->Dump();
     }
 
     else if (type == IF)
@@ -279,16 +323,16 @@ Operand StmtAST::Dump(std::ostream &os) const
 #ifdef DEBUG
         debug << "\tStmt - IF\n";
 #endif
-        Operand cond = exp->Dump(os);
+        Operand cond = exp->Dump();
         if (!cond.IsReg())
         {
             if (cond.ImmValue())
             {
-                return stmt->Dump(os);
+                return stmt->Dump();
             }
             else if (else_stmt)
             {
-                return else_stmt->Dump(os);
+                return else_stmt->Dump();
             }
             return Operand();
         }
@@ -301,7 +345,7 @@ Operand StmtAST::Dump(std::ostream &os) const
         printer->Br(cond, label_then, (else_stmt ? label_else : label_end));
 
         printer->Label(label_then);
-        Operand then_returned = stmt->Dump(os);
+        Operand then_returned = stmt->Dump();
         if (then_returned.IsNormal())
         {
             printer->Jump(label_end);
@@ -311,7 +355,7 @@ Operand StmtAST::Dump(std::ostream &os) const
         if (else_stmt)
         {
             printer->Label(label_else);
-            else_returned = else_stmt->Dump(os);
+            else_returned = else_stmt->Dump();
             if (else_returned.IsNormal())
             {
                 printer->Jump(label_end);
@@ -346,7 +390,7 @@ Operand StmtAST::Dump(std::ostream &os) const
 
         printer->Jump(while_entry);
         printer->Label(while_entry);
-        Operand cond = exp->Dump(os);
+        Operand cond = exp->Dump();
         if (cond.IsReg())
         {
             printer->Br(cond, while_body, while_end);
@@ -363,7 +407,7 @@ Operand StmtAST::Dump(std::ostream &os) const
         }
 
         printer->Label(while_body);
-        Operand return_val = stmt->Dump(os);
+        Operand return_val = stmt->Dump();
         if (return_val.IsNormal())
         {
             printer->Jump(while_entry);
@@ -404,23 +448,22 @@ Operand StmtAST::Dump(std::ostream &os) const
 =================================================
 */
 
-Operand ExpAST::Dump(std::ostream &os) const
+Operand ExpAST::Dump() const
 {
 #ifdef DEBUG
     debug << "Exp Dump\n";
 #endif
 
-    return lor_exp->Dump(os);
+    return lor_exp->Dump();
 }
 
-Operand LValAST::Dump(std::ostream &os) const
+Operand LValAST::Dump() const
 {
 #ifdef DEBUG
     debug << "LVal Dump\n";
 #endif
 
-    Symbol symbol = symbol_tables->Get(ident);
-    assert(symbol.type == Symbol::CONST || symbol.val);
+    Symbol symbol = symbol_tables->GetSymbol(ident);
     if (symbol.type == Symbol::CONST)
     {
         return Operand(Operand::IMM, symbol.val);
@@ -431,19 +474,25 @@ Operand LValAST::Dump(std::ostream &os) const
         printer->Load(var_reg, symbol_tables->Mark(ident, symbol.val), false);
         return var_reg;
     }
+    else if (symbol.type == Symbol::PARAM)
+    {
+        Operand var_reg = Operand(Operand::REG);
+        printer->Load(var_reg, symbol_tables->Mark(ident, symbol.val));
+        return var_reg;
+    }
     return Operand();
 }
 
-Operand PrimaryExpAST::Dump(std::ostream &os) const
+Operand PrimaryExpAST::Dump() const
 {
 #ifdef DEBUG
     debug << "PrimaryExp Dump\n";
 #endif
 
-    return exp_or_lval_or_number->Dump(os);
+    return exp_or_lval_or_number->Dump();
 }
 
-Operand NumberAST::Dump(std::ostream &os) const
+Operand NumberAST::Dump() const
 {
 #ifdef DEBUG
     debug << "Number Dump\n";
@@ -452,21 +501,41 @@ Operand NumberAST::Dump(std::ostream &os) const
     return Operand(Operand::IMM, number);
 }
 
-Operand UnaryExpAST::Dump(std::ostream &os) const
+Operand UnaryExpAST::Dump() const
 {
 #ifdef DEBUG
     debug << "UnaryExp Dump\n";
 #endif
 
-    Operand operand = primary_or_unary_exp->Dump(os);
     if (type == PRIMARY_EXP)
     {
-        return operand;
+        return primary_or_unary_exp->Dump();
     }
-    else if (operand.IsReg())
+    if (type == CALL_FUNC)
+    {
+        std::deque<Operand> r_params;
+        for (int i = 0, n = params.size(); i < n; ++i)
+        {
+            r_params.push_back(params[i]->Dump());
+        }
+        Symbol symbol = symbol_tables->GetSymbol(op_or_func);
+        if (symbol.FuncRetType() == BType::VOID)
+        {
+            printer->Call(op_or_func, r_params, Operand().SetAsReturnMark());
+            return Operand();
+        }
+        else
+        {
+            Operand ret_reg = Operand(Operand::REG);
+            printer->Call(op_or_func, r_params, ret_reg);
+            return ret_reg;
+        }
+    }
+    Operand operand = primary_or_unary_exp->Dump();
+    if (operand.IsReg())
     {
         Operand result = Operand(Operand::REG);
-        switch (unary_op[0])
+        switch (op_or_func[0])
         {
         case '+':
             printer->Add(result, Operand(), operand);
@@ -484,7 +553,7 @@ Operand UnaryExpAST::Dump(std::ostream &os) const
     }
     else
     {
-        switch (unary_op[0])
+        switch (op_or_func[0])
         {
         case '+':
             return Operand(Operand::IMM, operand.ImmValue());
@@ -499,7 +568,7 @@ Operand UnaryExpAST::Dump(std::ostream &os) const
     return Operand();
 }
 
-Operand MulExpAST::Dump(std::ostream &os) const
+Operand MulExpAST::Dump() const
 {
 #ifdef DEBUG
     debug << "MulExp Dump\n";
@@ -507,10 +576,10 @@ Operand MulExpAST::Dump(std::ostream &os) const
 
     if (type == UNARY_EXP)
     {
-        return unary_exp->Dump(os);
+        return unary_exp->Dump();
     }
-    Operand left = mul_exp->Dump(os);
-    Operand right = unary_exp->Dump(os);
+    Operand left = mul_exp->Dump();
+    Operand right = unary_exp->Dump();
     if (left.IsReg() || right.IsReg())
     {
         Operand result = Operand(Operand::REG);
@@ -547,7 +616,7 @@ Operand MulExpAST::Dump(std::ostream &os) const
     return Operand();
 }
 
-Operand AddExpAST::Dump(std::ostream &os) const
+Operand AddExpAST::Dump() const
 {
 #ifdef DEBUG
     debug << "AddExp Dump\n";
@@ -555,10 +624,10 @@ Operand AddExpAST::Dump(std::ostream &os) const
 
     if (type == MUL_EXP)
     {
-        return mul_exp->Dump(os);
+        return mul_exp->Dump();
     }
-    Operand left = add_exp->Dump(os);
-    Operand right = mul_exp->Dump(os);
+    Operand left = add_exp->Dump();
+    Operand right = mul_exp->Dump();
     if (left.IsReg() || right.IsReg())
     {
         Operand result = Operand(Operand::REG);
@@ -591,7 +660,7 @@ Operand AddExpAST::Dump(std::ostream &os) const
     return Operand();
 }
 
-Operand RelExpAST::Dump(std::ostream &os) const
+Operand RelExpAST::Dump() const
 {
 #ifdef DEBUG
     debug << "RelExp Dump\n";
@@ -599,10 +668,10 @@ Operand RelExpAST::Dump(std::ostream &os) const
 
     if (type == ADD_EXP)
     {
-        return add_exp->Dump(os);
+        return add_exp->Dump();
     }
-    Operand left = rel_exp->Dump(os);
-    Operand right = add_exp->Dump(os);
+    Operand left = rel_exp->Dump();
+    Operand right = add_exp->Dump();
     if (left.IsReg() || right.IsReg())
     {
         Operand result = Operand(Operand::REG);
@@ -654,7 +723,7 @@ Operand RelExpAST::Dump(std::ostream &os) const
     return Operand();
 }
 
-Operand EqExpAST::Dump(std::ostream &os) const
+Operand EqExpAST::Dump() const
 {
 #ifdef DEBUG
     debug << "EqExp Dump\n";
@@ -662,10 +731,10 @@ Operand EqExpAST::Dump(std::ostream &os) const
 
     if (type == REL_EXP)
     {
-        return rel_exp->Dump(os);
+        return rel_exp->Dump();
     }
-    Operand left = eq_exp->Dump(os);
-    Operand right = rel_exp->Dump(os);
+    Operand left = eq_exp->Dump();
+    Operand right = rel_exp->Dump();
     if (left.IsReg() || right.IsReg())
     {
         Operand result = Operand(Operand::REG);
@@ -709,7 +778,7 @@ std::string LAndExpAST::and_end = "and_end";
 
 std::string LAndExpAST::and_temp = "and_temp";
 
-Operand LAndExpAST::Dump(std::ostream &os) const
+Operand LAndExpAST::Dump() const
 {
 #ifdef DEBUG
     debug << "LAndExp Dump\n";
@@ -717,10 +786,10 @@ Operand LAndExpAST::Dump(std::ostream &os) const
 
     if (type == EQ_EXP)
     {
-        return eq_exp->Dump(os);
+        return eq_exp->Dump();
     }
 
-    Operand left = land_exp->Dump(os);
+    Operand left = land_exp->Dump();
     if (!left.IsReg())
     {
         if (left.ImmValue() == 0)
@@ -728,7 +797,7 @@ Operand LAndExpAST::Dump(std::ostream &os) const
             return Operand(Operand::IMM, 0);
         }
 
-        Operand right = eq_exp->Dump(os);
+        Operand right = eq_exp->Dump();
 
         if (right.IsReg())
         {
@@ -747,19 +816,17 @@ Operand LAndExpAST::Dump(std::ostream &os) const
     std::string label_end = symbol_tables->Mark(and_end, branch_mark);
     std::string temp_result = symbol_tables->Mark(and_temp, branch_mark);
 
-    symbol_tables->InnerBlockRecord(temp_result, Symbol(Symbol::VAR));
-    if (!symbol_tables->InterBlockAllocated(temp_result))
+    symbol_tables->RecordSymbol(temp_result, Symbol(Symbol::VAR));
+    if (!symbol_tables->LocalAllocated(temp_result))
     {
-        printer->Alloc(temp_result);
-        printer->Int();
-        printer->NewLine();
-        symbol_tables->InterBlockAllocate(temp_result);
+        printer->Alloc(temp_result, BType::INT);
+        symbol_tables->LocalAllocate(temp_result);
     }
     printer->Ne(cond, left, Operand());
     printer->Br(cond, label_then, label_else);
 
     printer->Label(label_then);
-    Operand right = eq_exp->Dump(os);
+    Operand right = eq_exp->Dump();
     if (right.IsReg())
     {
         Operand temp = Operand(Operand::REG);
@@ -791,7 +858,7 @@ std::string LOrExpAST::or_end = "or_end";
 
 std::string LOrExpAST::or_temp = "or_temp";
 
-Operand LOrExpAST::Dump(std::ostream &os) const
+Operand LOrExpAST::Dump() const
 {
 #ifdef DEBUG
     debug << "LOrExp Dump\n";
@@ -799,10 +866,10 @@ Operand LOrExpAST::Dump(std::ostream &os) const
 
     if (type == LAND_EXP)
     {
-        return land_exp->Dump(os);
+        return land_exp->Dump();
     }
 
-    Operand left = lor_exp->Dump(os);
+    Operand left = lor_exp->Dump();
     if (!left.IsReg())
     {
         if (left.ImmValue())
@@ -810,7 +877,7 @@ Operand LOrExpAST::Dump(std::ostream &os) const
             return Operand(Operand::IMM, 1);
         }
 
-        Operand right = land_exp->Dump(os);
+        Operand right = land_exp->Dump();
         if (right.IsReg())
         {
             Operand result = Operand(Operand::REG);
@@ -828,13 +895,11 @@ Operand LOrExpAST::Dump(std::ostream &os) const
     std::string label_end = symbol_tables->Mark(or_end, branch_mark);
     std::string temp_result = symbol_tables->Mark(or_temp, branch_mark);
 
-    symbol_tables->InnerBlockRecord(temp_result, Symbol(Symbol::VAR));
-    if (!symbol_tables->InterBlockAllocated(temp_result))
+    symbol_tables->RecordSymbol(temp_result, Symbol(Symbol::VAR));
+    if (!symbol_tables->LocalAllocated(temp_result))
     {
-        printer->Alloc(temp_result);
-        printer->Int();
-        printer->NewLine();
-        symbol_tables->InterBlockAllocate(temp_result);
+        printer->Alloc(temp_result, BType::INT);
+        symbol_tables->LocalAllocate(temp_result);
     }
     printer->Ne(cond, left, Operand());
     printer->Br(cond, label_then, label_else);
@@ -844,7 +909,7 @@ Operand LOrExpAST::Dump(std::ostream &os) const
     printer->Jump(label_end);
 
     printer->Label(label_else);
-    Operand right = land_exp->Dump(os);
+    Operand right = land_exp->Dump();
     if (right.IsReg())
     {
         Operand temp = Operand(Operand::REG);
@@ -864,11 +929,11 @@ Operand LOrExpAST::Dump(std::ostream &os) const
     return result;
 }
 
-Operand ConstExpAST::Dump(std::ostream &os) const
+Operand ConstExpAST::Dump() const
 {
 #ifdef DEBUG
     debug << "ConstExp Dump\n";
 #endif
 
-    return exp->Dump(os);
+    return exp->Dump();
 }

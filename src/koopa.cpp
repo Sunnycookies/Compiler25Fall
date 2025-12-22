@@ -10,39 +10,59 @@ void KoopaCode::SetOstream(std::ostream &os)
     pos = &os;
 }
 
-void KoopaCode::NewLine()
-{
-    *pos << "\n";
-}
-
-void KoopaCode::FrontCurBrac()
-{
-    *pos << " {\n";
-}
-
 void KoopaCode::EndCurBrac()
 {
-    *pos << "}\n";
+    *pos << "}\n\n";
 }
 
-void KoopaCode::Int()
+void KoopaCode::Type(const BType::data_type &type)
 {
-    *pos << "i32";
+    switch (type)
+    {
+    case BType::INT:
+        *pos << " i32";
+        return;
+    
+    case BType::VOID:
+    default:
+        return;
+    }
 }
 
-// void KoopaCode::Func(const std::string &func, const std::string &ret_type)
-// {
-//     *pos << "func @" << func << "(): " << ret_type << "\n";
-// }
+void KoopaCode::PreFunc(const std::string &func)
+{
+    bool flag = true;
+    *pos << "fun @" << func << "(";
+}
+
+void KoopaCode::FParam(const BType::data_type &type, const std::string &ident, const bool &comma)
+{
+    *pos << (comma ? ", " : "") << "@" << ident << ":";
+    Type(type);
+}
+
+void KoopaCode::StoreFParam(const std::string &temp, const std::string &fparam)
+{
+    *pos << "\tstore @" << fparam << ", %" << temp << "\n";
+}
+
+void KoopaCode::PostFunc(const BType::data_type &type)
+{
+    *pos << ")" << (type == BType::VOID ? "" : ":");
+    Type(type);
+    *pos << " {\n";
+}
 
 void KoopaCode::Label(const std::string &label)
 {
     *pos << "%" << label << ":\n";
 }
 
-void KoopaCode::Alloc(const std::string &var, const bool &temp)
+void KoopaCode::Alloc(const std::string &var, const BType::data_type &type, const bool &temp)
 {
-    *pos << "\t" << (temp ? "%" : "@") << var << " = alloc ";
+    *pos << "\t" << (temp ? "%" : "@") << var << " = alloc";
+    Type(type);
+    *pos << "\n";
 }
 
 void KoopaCode::Store(const Operand &reg_or_imm, const std::string &var, const bool &temp)
@@ -130,12 +150,37 @@ void KoopaCode::Or(const Operand &dst, const Operand &src1, const Operand &src2)
     *pos << "\t" << dst << " = or " << src1 << ", " << src2 << "\n";
 }
 
-void KoopaCode::Ret()
+void KoopaCode::Ret(const Operand &reg_or_imm)
 {
-    *pos << "\tret\n";
+    if (reg_or_imm.IsNormal())
+    {
+        *pos << "\tret " << reg_or_imm << "\n";
+    }
+    else
+    {
+        *pos << "\tret\n";
+    }
 }
 
-void KoopaCode::RetV(const Operand &reg_or_imm)
+void KoopaCode::Call(const std::string &func, std::deque<Operand> &params, const Operand &ret)
 {
-    *pos << "\tret " << reg_or_imm << "\n";
+    if (ret.IsNormal())
+    {
+        *pos << "\t" << ret << " = call @" << func << "(";
+    }
+    else
+    {
+        *pos << "\tcall @" << func << "(";
+    }
+    bool comma = false;
+    for (int i = 0, n = params.size(); i < n; ++i)
+    {
+        if (comma)
+        {
+            *pos << ", ";
+        }
+        *pos << params[i];
+        comma = true;
+    }
+    *pos << ")\n";
 }
