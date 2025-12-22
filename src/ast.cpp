@@ -62,6 +62,8 @@ Operand CompUnitAST::Dump() const
 =================================================
 */
 
+bool DeclAST::global = true;
+
 Operand DeclAST::Dump() const
 {
 #ifdef DEBUG
@@ -128,6 +130,17 @@ Operand VarDefAST::Dump() const
 #endif
 
     symbol_tables->RecordSymbol(ident, Symbol(Symbol::VAR));
+    if (DeclAST::global)
+    {
+        Symbol symbol = symbol_tables->GetSymbol(ident);
+        Operand val = Operand().SetAsReturnMark();
+        if (type == INITVAL)
+        {
+            val = init_val->Dump();
+        }
+        printer->GlobalAlloc(symbol_tables->Mark(ident, symbol.val), current_type, val);
+        return Operand();
+    }
     if (!symbol_tables->LocalAllocated(ident))
     {
         Symbol symbol = symbol_tables->GetSymbol(ident);
@@ -166,8 +179,9 @@ Operand FuncDefAST::Dump() const
 
     symbol_tables->RecordSymbol(ident, Symbol(Symbol::FUNC, func_type));
     symbol_tables->NewSymbolTable(true);
-    printer->PreFunc(ident);
     FuncFParamAST::comma = false;
+    DeclAST::global = false;
+    printer->PreFunc(ident);
     for (int i = 0, n = params.size(), comma; i < n; ++i)
     {
         params[i]->Dump();
@@ -192,6 +206,7 @@ Operand FuncDefAST::Dump() const
         }
     }
     printer->EndCurBrac();
+    DeclAST::global = true;
     symbol_tables->DeleteSymbolTable(true);
     return Operand();
 }

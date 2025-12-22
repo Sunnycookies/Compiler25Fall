@@ -72,6 +72,12 @@ CompUnit
     ast->func_def_or_decl = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
+  | Decl {
+    auto ast = new CompUnitAST();
+    ast->type = CompUnitAST::DECL;
+    ast->func_def_or_decl = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
   ;
 
 Decl

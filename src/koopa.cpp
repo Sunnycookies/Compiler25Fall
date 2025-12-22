@@ -89,6 +89,21 @@ void KoopaCode::Alloc(const std::string &var, const BType::data_type &type, cons
     *pos << "\n";
 }
 
+void KoopaCode::GlobalAlloc(const std::string &var, const BType::data_type &type, const Operand &v)
+{
+    *pos << "\nglobal @" << var << " = alloc ";
+    Type(type);
+    *pos << ", ";
+    if (v.IsNormal())
+    {
+        *pos << v << "\n";
+    }
+    else
+    {
+        *pos << "zeroinit\n";
+    }
+}
+
 void KoopaCode::Store(const Operand &reg_or_imm, const std::string &var, const bool &temp)
 {
     *pos << "\tstore " << reg_or_imm << ", " << (temp ? "%" : "@") << var << "\n";

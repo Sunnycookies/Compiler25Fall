@@ -54,6 +54,7 @@ public:
 class DeclAST : public BaseAST
 {
 public:
+    static bool global;
     std::unique_ptr<BaseAST> const_or_var_decl;
     Operand Dump() const override;
 };
