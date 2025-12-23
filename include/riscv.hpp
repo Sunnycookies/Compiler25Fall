@@ -13,11 +13,14 @@ private:
 public:
     RiscvCode(std::ostream &os = std::cout);
     void SetOstream(std::ostream &os);
+    void Data();
     void Text();
     void Global(const char *name);
     void Label(const char *name);
-    void Lw(const Register &rd, const Register &rs, const int &imm);
-    void Sw(const Register &rs1, const Register &rs2, const int &imm);
+    void Word(const int &imm);
+    void Zero(const int &data_size);
+    void Lw(const Register &rs, const Register &rd, const int &imm);
+    void Sw(const Register &rd, const Register &rs, const int &imm);
     void Add(const Register &rd, const Register &rs1, const Register &rs2);
     void Addi(const Register &rd, const Register &rs1, const int &imm);
     void Sub(const Register &rd, const Register &rs1, const Register &rs2);
@@ -38,5 +41,7 @@ public:
     void Li(const Register &rd, const int &imm);
     void Bnez(const Register &rs, const char *label);
     void J(const char *label);
+    void Call(const char *name);
+    void La(const Register &rd, const char *name);
     void Ret();
 };

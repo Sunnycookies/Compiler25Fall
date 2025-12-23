@@ -2,7 +2,6 @@
 
 #include <iostream>
 #include <cassert>
-#include <unordered_map>
 #include "koopa.h"
 
 class Register
@@ -11,8 +10,8 @@ private:
     static int usable_reg_num;
     static int ret_reg_no;
     static int sp_no;
+    static int ra_no;
     static int *reg_record;
-    static std::unordered_map<koopa_raw_value_t, int> value_reg_map;
     int reg_no;
 
 public:
@@ -21,8 +20,11 @@ public:
         ZERO,
         RET,
         SP,
+        RA,
+        PARAM,
     };
-    Register(const special_register_type &type = ZERO);
+    static int PARAM_REG_NUM;
+    Register(const special_register_type &type = ZERO, const int &id = 0);
     Register(const koopa_raw_value_t &value);
     ~Register();
     void Unallocate();

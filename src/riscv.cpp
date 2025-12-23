@@ -15,9 +15,14 @@ void RiscvCode::SetOstream(std::ostream &os)
     pos = &os;
 }
 
+void RiscvCode::Data()
+{
+    *pos << "\n\t.data\n";
+}
+
 void RiscvCode::Text()
 {
-    *pos << "\t.text\n";
+    *pos << "\n\t.text\n";
 }
 
 void RiscvCode::Global(const char *name)
@@ -30,33 +35,43 @@ void RiscvCode::Label(const char *name)
     *pos << name << ":\n";
 }
 
-void RiscvCode::Lw(const Register &rd, const Register &rs, const int &imm)
+void RiscvCode::Word(const int &imm)
+{
+    *pos << "\t.word " << imm << "\n";
+}
+
+void RiscvCode::Zero(const int &data_size)
+{
+    *pos << "\t.zero " << data_size << "\n";
+}
+
+void RiscvCode::Lw(const Register &rs, const Register &rd, const int &imm)
 {
     if (ImmOutOfRange(imm))
     {
         Register temp = Register();
         Li(temp, imm);
         Add(temp, temp, rs);
-        *pos << "\tlw " << rs << ", (" << temp << ")\n";
+        *pos << "\tlw " << rd << ", (" << temp << ")\n";
     }
     else
     {
-        *pos << "\tlw " << rs << ", " << imm << "(" << rd << ")\n";
+        *pos << "\tlw " << rd << ", " << imm << "(" << rs << ")\n";
     }
 }
 
-void RiscvCode::Sw(const Register &rs1, const Register &rs2, const int &imm)
+void RiscvCode::Sw(const Register &rd, const Register &rs, const int &imm)
 {
     if (ImmOutOfRange(imm))
     {
         Register temp = Register();
         Li(temp, imm);
-        Add(temp, temp, rs1);
-        *pos << "\tsw " << rs2 << ", (" << temp << ")\n";
+        Add(temp, temp, rd);
+        *pos << "\tsw " << rs << ", (" << temp << ")\n";
     }
     else
     {
-        *pos << "\tsw " << rs2 << ", " << imm << "(" << rs1 << ")\n";
+        *pos << "\tsw " << rs << ", " << imm << "(" << rd << ")\n";
     }
 }
 
@@ -167,6 +182,16 @@ void RiscvCode::Bnez(const Register &rs, const char *label)
 void RiscvCode::J(const char *label)
 {
     *pos << "\tj " << label << "\n";
+}
+
+void RiscvCode::Call(const char *name)
+{
+    *pos << "\tcall " << name << "\n";
+}
+
+void RiscvCode::La(const Register &rd, const char *name)
+{
+    *pos << "\tla " << rd << ", " << name << "\n";
 }
 
 void RiscvCode::Ret()

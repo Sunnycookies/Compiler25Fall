@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <cassert>
+#include <vector>
 #include "koopa.h"
 #include "register.hpp"
 #include "riscv.hpp"
@@ -11,6 +12,7 @@
 class Backend
 {
 public:
+    static bool pass_entry;
     Backend(const char *koopa_str);
     ~Backend();
     friend std::ostream &operator<<(std::ostream &os, Backend &backend);
@@ -31,4 +33,6 @@ private:
     void Visit(const koopa_raw_store_t &store);
     void Visit(const koopa_raw_branch_t &branch);
     void Visit(const koopa_raw_jump_t &jump);
+    void Visit(const koopa_raw_value_t &value, const koopa_raw_call_t &call);
+    void Visit(const koopa_raw_value_t &value, const koopa_raw_global_alloc_t &global_alloc);
 };

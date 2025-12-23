@@ -1,5 +1,7 @@
 #include "backend.hpp"
 
+bool Backend::pass_entry = false;
+
 Backend::Backend(const char *koopa_str)
 {
     // 解析字符串 koopa_str, 得到 Koopa IR 程序
@@ -30,7 +32,6 @@ void Backend::Visit(std::ostream &os = std::cout)
 {
     printer.SetOstream(os);
     Visit(raw_program.values);
-    printer.Text();
     Visit(raw_program.funcs);
 }
 
@@ -66,29 +67,55 @@ void Backend::Visit(const koopa_raw_function_t &func)
     debug << "Visit Function\n";
 #endif
 
+    if (func->bbs.len == 0)
+    {
+        return;
+    }
+
+    printer.Text();
     printer.Global(func->name + 1);
     printer.Label(func->name + 1);
 
     int stack_size = 0;
+    int temp_size = 0;
+    int ra_size = 0;
+    int local_size = 0;
     for (size_t i = 0; i < func->bbs.len; ++i)
     {
         auto bb = reinterpret_cast<koopa_raw_basic_block_t>(func->bbs.buffer[i]);
-        stack_size += bb->insts.len;
+        local_size += bb->insts.len;
         for (size_t j = 0; j < bb->insts.len; ++j)
         {
             auto inst = reinterpret_cast<koopa_raw_value_t>(bb->insts.buffer[j]);
             if (inst->ty->tag == KOOPA_RTT_UNIT)
             {
-                --stack_size;
+                --local_size;
+            }
+            if (inst->kind.tag == KOOPA_RVT_CALL)
+            {
+                ra_size = 1;
+                int param_num = inst->kind.data.call.args.len;
+                temp_size = std::max(temp_size, param_num - 8);
             }
         }
     }
 
-    stack_size *= DATA_SIZE;
+    ra_size *= DATA_SIZE;
+    local_size *= DATA_SIZE;
+    temp_size *= DATA_SIZE;
+    stack_size = ra_size + local_size + temp_size;
     stack_size = (stack_size + ALIGN_SIZE - 1) / ALIGN_SIZE * ALIGN_SIZE;
-    stack = Stack(stack_size);
-    printer.Addi(Register(Register::SP), Register(Register::SP), -stack_size);
+    stack = Stack(stack_size, temp_size, ra_size);
+    if (stack.GetStackSize())
+    {
+        printer.Addi(Register(Register::SP), Register(Register::SP), -stack_size);
+    }
+    if (stack.SaveRa())
+    {
+        printer.Sw(Register(Register::SP), Register(Register::RA), stack.RaOffset());
+    }
 
+    pass_entry = false;
     Visit(func->bbs);
 }
 
@@ -97,8 +124,11 @@ void Backend::Visit(const koopa_raw_basic_block_t &bb)
 #ifdef DEBUG
     debug << "Visit BasicBlock\n";
 #endif
-
-    printer.Label(bb->name + 1);
+    if (pass_entry)
+    {
+        printer.Label(bb->name + 1);
+    }
+    pass_entry = true;
     Visit(bb->insts);
 }
 
@@ -131,6 +161,12 @@ void Backend::Visit(const koopa_raw_value_t &value)
     case KOOPA_RVT_JUMP:
         Visit(kind.data.jump);
         break;
+    case KOOPA_RVT_CALL:
+        Visit(value, kind.data.call);
+        break;
+    case KOOPA_RVT_GLOBAL_ALLOC:
+        Visit(value, kind.data.global_alloc);
+        break;
     default:
         assert(false);
     }
@@ -143,20 +179,25 @@ void Backend::Visit(const koopa_raw_return_t &ret)
 #endif
 
     Register ret_reg = Register(Register::RET);
-    if (!ret.value)
+    if (ret.value)
     {
-        printer.Li(ret_reg, 0);
+        if (ret.value->kind.tag == KOOPA_RVT_INTEGER)
+        {
+            printer.Li(ret_reg, ret.value->kind.data.integer.value);
+        }
+        else
+        {
+            printer.Lw(Register(Register::SP), ret_reg, stack.GetOffset(ret.value));
+        }
     }
-    else if (ret.value->kind.tag == KOOPA_RVT_INTEGER)
+    if (stack.SaveRa())
     {
-        printer.Li(ret_reg, ret.value->kind.data.integer.value);
+        printer.Lw(Register(Register::SP), Register(Register::RA), stack.RaOffset());
     }
-    else
+    if (stack.GetStackSize())
     {
-        Visit(ret.value);
-        printer.Lw(Register(Register::SP), ret_reg, stack.GetOffset(ret.value));
+        printer.Addi(Register(Register::SP), Register(Register::SP), stack.GetStackSize());
     }
-    printer.Addi(Register(Register::SP), Register(Register::SP), stack.GetStackSize());
     printer.Ret();
     ret_reg.Unallocate();
 }
@@ -254,12 +295,39 @@ void Backend::Visit(const koopa_raw_store_t &store)
     {
         printer.Li(dst, store.value->kind.data.integer.value);
     }
+    else if (store.value->kind.tag == KOOPA_RVT_FUNC_ARG_REF)
+    {
+        int ind = store.value->kind.data.func_arg_ref.index;
+        if (ind < Register::PARAM_REG_NUM)
+        {
+            Register param_reg = Register(Register::PARAM, ind);
+            printer.Mv(dst, param_reg);
+            param_reg.Unallocate();
+        }
+        else
+        {
+            int offset = stack.GetStackSize() + (ind - Register::PARAM_REG_NUM) * DATA_SIZE;
+            printer.Lw(Register(Register::SP), dst, offset);
+        }
+    }
     else
     {
         printer.Lw(Register(Register::SP), dst, stack.GetOffset(store.value));
     }
-    stack.Push(store.dest, DATA_SIZE);
-    printer.Sw(Register(Register::SP), dst, stack.GetOffset(store.dest));
+
+    if (store.dest->kind.tag == KOOPA_RVT_GLOBAL_ALLOC)
+    {
+        Register addr = Register(store.dest);
+        printer.La(addr, store.dest->name + 1);
+        printer.Sw(addr, dst, 0);
+        addr.Unallocate();
+    }
+    else
+    {
+        stack.Push(store.dest, DATA_SIZE);
+        printer.Sw(Register(Register::SP), dst, stack.GetOffset(store.dest));
+    }
+
     dst.Unallocate();
 }
 
@@ -270,7 +338,16 @@ void Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_load_t &load
 #endif
 
     Register dst = Register(value);
-    printer.Lw(Register(Register::SP), dst, stack.GetOffset(load.src));
+    if (load.src->kind.tag == KOOPA_RVT_GLOBAL_ALLOC)
+    {
+        Register addr = Register(load.src);
+        printer.La(addr, load.src->name + 1);
+        printer.Lw(addr, dst, 0);
+    }
+    else
+    {
+        printer.Lw(Register(Register::SP), dst, stack.GetOffset(load.src));
+    }
     stack.Push(value, DATA_SIZE);
     printer.Sw(Register(Register::SP), dst, stack.GetOffset(value));
     dst.Unallocate();
@@ -296,4 +373,81 @@ void Backend::Visit(const koopa_raw_jump_t &jump)
 #endif
 
     printer.J(jump.target->name + 1);
+}
+
+void Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_call_t &call)
+{
+#ifdef DEBUG
+    debug << "Visit Call\n";
+#endif
+
+    std::vector<Register> param_regs;
+    int param_num = call.args.len;
+    for (int i = Register::PARAM_REG_NUM; i < param_num; ++i)
+    {
+        auto ptr = reinterpret_cast<koopa_raw_value_t>(call.args.buffer[i]);
+        Register temp = Register(ptr);
+        if (ptr->kind.tag == KOOPA_RVT_INTEGER)
+        {
+            printer.Li(temp, ptr->kind.data.integer.value);
+        }
+        else
+        {
+            printer.Lw(Register(Register::SP), temp, stack.GetOffset(ptr));
+        }
+        stack.Push(ptr, DATA_SIZE, true);
+        printer.Sw(Register(Register::SP), temp, stack.GetOffset(ptr, true));
+        temp.Unallocate();
+    }
+    for (int i = 0, n = std::min(param_num, Register::PARAM_REG_NUM); i < n; ++i)
+    {
+        Register param_reg = Register(Register::PARAM, i);
+        auto ptr = reinterpret_cast<koopa_raw_value_t>(call.args.buffer[i]);
+        if (ptr->kind.tag == KOOPA_RVT_INTEGER)
+        {
+            printer.Li(param_reg, ptr->kind.data.integer.value);
+        }
+        else
+        {
+            printer.Lw(Register(Register::SP), param_reg, stack.GetOffset(ptr));
+        }
+        param_regs.push_back(param_reg);
+    }
+
+    for (int i = 0, n = param_regs.size(); i < n; ++i)
+    {
+        param_regs[i].Unallocate();
+    }
+    for (int i = Register::PARAM_REG_NUM; i < param_num; ++i)
+    {
+        stack.Pop(DATA_SIZE, true);
+    }
+
+    printer.Call(call.callee->name + 1);
+    if (value->ty->tag != KOOPA_RTT_UNIT)
+    {
+        Register ret_reg = Register(Register::RET);
+        stack.Push(value, DATA_SIZE);
+        printer.Sw(Register(Register::SP), ret_reg, stack.GetOffset(value));
+        ret_reg.Unallocate();
+    }
+}
+
+void Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_global_alloc_t &global_alloc)
+{
+#ifdef DEBUG
+    debug << "Visit Global Alloc\n";
+#endif
+
+    printer.Data();
+    printer.Global(value->name + 1);
+    printer.Label(value->name + 1);
+    if (global_alloc.init->kind.tag == KOOPA_RVT_INTEGER)
+    {
+        printer.Word(global_alloc.init->kind.data.integer.value);
+    }
+    else if (global_alloc.init->kind.tag == KOOPA_RVT_ZERO_INIT)
+    {
+        printer.Zero(DATA_SIZE);
+    }
 }

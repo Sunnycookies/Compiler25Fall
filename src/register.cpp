@@ -6,25 +6,36 @@ int Register::ret_reg_no = 8;
 
 int Register::sp_no = 16;
 
+int Register::ra_no = 17;
+
 int *Register::reg_record = new int[Register::usable_reg_num + 1];
 
-std::unordered_map<koopa_raw_value_t, int> Register::value_reg_map;
+int Register::PARAM_REG_NUM = 8;
 
-Register::Register(const special_register_type &type)
+Register::Register(const special_register_type &type, const int &id)
 {
-    if (type == RET)
+    switch (type)
     {
+    case RET:
         assert(!reg_record[ret_reg_no]);
         reg_no = ret_reg_no;
         reg_record[reg_no] = 1;
-    }
-    else if (type == SP)
-    {
+        return;
+    case SP:
         reg_no = sp_no;
-    }
-    else
-    {
+        return;
+    case RA:
+        reg_no = ra_no;
+        return;
+    case PARAM:
+        reg_no = ret_reg_no + id;
+        assert(reg_record[reg_no] == 0);
+        reg_record[reg_no] = 1;
+        return;
+    default:
+    case ZERO:
         reg_no = 0;
+        return;
     }
 }
 
@@ -36,7 +47,6 @@ Register::Register(const koopa_raw_value_t &value)
         {
             reg_record[i] = 1;
             reg_no = i;
-            // value_reg_map[value] = i;
             return;
         }
     }
@@ -56,6 +66,10 @@ std::ostream &operator<<(std::ostream &os, const Register &reg)
     else if (reg.reg_no == Register::sp_no)
     {
         os << "sp";
+    }
+    else if (reg.reg_no == Register::ra_no)
+    {
+        os << "ra";
     }
     else if (reg.reg_no < Register::ret_reg_no)
     {
