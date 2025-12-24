@@ -38,18 +38,18 @@ int main(int argc, const char *argv[])
 
     // 重定向标准输出
     ofstream ofs(output);
+    ostringstream oss;
     if (string(mode) == MODE_KOOPA)
     {
         ofs << *ast;
     }
-    else if (string(mode) == MODE_RISCV)
+    else if (string(mode) == MODE_RISCV || string(mode) == MODE_PREF)
     {
-        ostringstream oss;
         oss << *ast;
         Backend backend(oss.str().c_str());
         ofs << backend;
     }
     ofs.close();
-    
+
     return 0;
 }
