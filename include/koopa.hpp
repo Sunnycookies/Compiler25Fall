@@ -2,9 +2,9 @@
 
 #include <iostream>
 #include <string>
-#include "symbol.hpp"
+#include <deque>
 #include "operand.hpp"
-#include "deque"
+#include "defs.hpp"
 
 class KoopaCode
 {
