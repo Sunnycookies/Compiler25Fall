@@ -29,10 +29,8 @@ class SymbolTables
 private:
     static SymbolTables *pSymbolTables;
     typedef std::unordered_map<std::string, Symbol> symbol_table_t;
-    typedef std::pair<std::string, int> local_symbol_t;
-    typedef std::set<local_symbol_t> inner_symtab_t;
     std::vector<symbol_table_t> vert_symtabs;
-    inner_symtab_t func_inner_syms;
+    std::vector<int> sub_symtab_num;
     std::stack<int> loop_marks;
     int branch_count;
     SymbolTables() = default;
@@ -42,13 +40,12 @@ private:
 
 public:
     static SymbolTables *GetSymbolTables();
-    void NewSymbolTable(const bool &clear_local = false);
-    void DeleteSymbolTable(const bool &clear_local = false);
+    void NewSymbolTable();
+    void DeleteSymbolTable();
     std::string Mark(const std::string &name, const int &mark);
     void RecordSymbol(const std::string &ident, const Symbol &value);
+    std::string GetName(const std::string &ident);
     Symbol GetSymbol(const std::string &ident);
-    void LocalAllocate(const std::string &ident);
-    bool LocalAllocated(const std::string &ident);
     int NewBranchMark();
     void PushLoop(const int &loop_mark);
     int GetTopLoop();

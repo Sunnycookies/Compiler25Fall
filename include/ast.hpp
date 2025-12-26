@@ -146,7 +146,7 @@ public:
 class BlockAST : public BaseAST
 {
 public:
-    static bool new_symbol_table;
+    static bool new_symtab;
     std::deque<std::unique_ptr<BaseAST>> block_items;
     Operand Dump() const override;
 };

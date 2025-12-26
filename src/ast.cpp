@@ -138,20 +138,14 @@ Operand VarDefAST::Dump() const
         {
             val = init_val->Dump();
         }
-        printer->GlobalAlloc(symbol_tables->Mark(ident, symbol.val), current_type, val);
+        printer->GlobalAlloc(symbol_tables->GetName(ident), current_type, val);
         return Operand();
     }
-    if (!symbol_tables->LocalAllocated(ident))
-    {
-        Symbol symbol = symbol_tables->GetSymbol(ident);
-        printer->Alloc(symbol_tables->Mark(ident, symbol.val), current_type, false);
-        symbol_tables->LocalAllocate(ident);
-    }
+    printer->Alloc(symbol_tables->GetName(ident), current_type, false);
     if (type == INITVAL)
     {
         Operand val = init_val->Dump();
-        Symbol symbol = symbol_tables->GetSymbol(ident);
-        printer->Store(val, symbol_tables->Mark(ident, symbol.val), false);
+        printer->Store(val, symbol_tables->GetName(ident), false);
     }
     return Operand();
 }
@@ -178,9 +172,10 @@ Operand FuncDefAST::Dump() const
 #endif
 
     symbol_tables->RecordSymbol(ident, Symbol(Symbol::FUNC, func_type));
-    symbol_tables->NewSymbolTable(true);
+    symbol_tables->NewSymbolTable();
     FuncFParamAST::comma = false;
     DeclAST::global = false;
+    BlockAST::new_symtab = false;
     printer->PreFunc(ident);
     for (int i = 0, n = params.size(), comma; i < n; ++i)
     {
@@ -207,7 +202,7 @@ Operand FuncDefAST::Dump() const
     }
     printer->EndCurBrac();
     DeclAST::global = true;
-    symbol_tables->DeleteSymbolTable(true);
+    symbol_tables->DeleteSymbolTable();
     return Operand();
 }
 
@@ -230,11 +225,9 @@ Operand FuncFParamAST::Allocate() const
 #endif
 
     symbol_tables->RecordSymbol(ident, Symbol(Symbol::VAR));
-    Symbol symbol = symbol_tables->GetSymbol(ident);
-    std::string val_name = symbol_tables->Mark(ident, symbol.val);
+    std::string val_name = symbol_tables->GetName(ident);
     printer->Alloc(val_name, type, false);
     printer->StoreFParam(val_name, ident);
-    symbol_tables->LocalAllocate(ident);
     return Operand();
 }
 
@@ -244,7 +237,7 @@ Operand FuncFParamAST::Allocate() const
 =================================================
 */
 
-bool BlockAST::new_symbol_table = false;
+bool BlockAST::new_symtab = false;
 
 Operand BlockAST::Dump() const
 {
@@ -252,12 +245,12 @@ Operand BlockAST::Dump() const
     debug << "Block Dump\n";
 #endif
 
-    bool create_table = new_symbol_table;
+    bool create_table = new_symtab;
     if (create_table)
     {
         symbol_tables->NewSymbolTable();
     }
-    new_symbol_table = true;
+    new_symtab = true;
     for (int i = 0, n = block_items.size(); i < n; ++i)
     {
         Operand return_val = block_items[i]->Dump();
@@ -267,7 +260,7 @@ Operand BlockAST::Dump() const
             {
                 symbol_tables->DeleteSymbolTable();
             }
-            new_symbol_table = create_table;
+            new_symtab = create_table;
             return return_val;
         }
     }
@@ -275,7 +268,7 @@ Operand BlockAST::Dump() const
     {
         symbol_tables->DeleteSymbolTable();
     }
-    new_symbol_table = create_table;
+    new_symtab = create_table;
     return Operand();
 }
 
@@ -329,8 +322,7 @@ Operand StmtAST::Dump() const
 #endif
         Operand operand = exp->Dump();
         std::string val_name = ((LValAST *)(lval_or_block.get()))->ident;
-        Symbol symbol = symbol_tables->GetSymbol(val_name);
-        printer->Store(operand, symbol_tables->Mark(val_name, symbol.val), false);
+        printer->Store(operand, symbol_tables->GetName(val_name), false);
     }
 
     else if (type == EXP && exp)
@@ -502,7 +494,7 @@ Operand LValAST::Dump() const
     else if (symbol.type == Symbol::VAR)
     {
         Operand var_reg = Operand(Operand::REG);
-        printer->Load(var_reg, symbol_tables->Mark(ident, symbol.val), false);
+        printer->Load(var_reg, symbol_tables->GetName(ident), false);
         return var_reg;
     }
     return Operand();
@@ -841,12 +833,7 @@ Operand LAndExpAST::Dump() const
     std::string label_end = symbol_tables->Mark(and_end, branch_mark);
     std::string temp_result = symbol_tables->Mark(and_temp, branch_mark);
 
-    symbol_tables->RecordSymbol(temp_result, Symbol(Symbol::VAR));
-    if (!symbol_tables->LocalAllocated(and_temp))
-    {
-        printer->Alloc(temp_result, BType::INT);
-        symbol_tables->LocalAllocate(and_temp);
-    }
+    printer->Alloc(temp_result, BType::INT);
     printer->Ne(cond, left, Operand());
     printer->Br(cond, label_then, label_else);
 
@@ -920,12 +907,7 @@ Operand LOrExpAST::Dump() const
     std::string label_end = symbol_tables->Mark(or_end, branch_mark);
     std::string temp_result = symbol_tables->Mark(or_temp, branch_mark);
 
-    symbol_tables->RecordSymbol(temp_result, Symbol(Symbol::VAR));
-    if (!symbol_tables->LocalAllocated(or_temp))
-    {
-        printer->Alloc(temp_result, BType::INT);
-        symbol_tables->LocalAllocate(or_temp);
-    }
+    printer->Alloc(temp_result, BType::INT);
     printer->Ne(cond, left, Operand());
     printer->Br(cond, label_then, label_else);
 

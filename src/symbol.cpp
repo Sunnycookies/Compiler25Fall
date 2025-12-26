@@ -33,22 +33,21 @@ SymbolTables *SymbolTables::GetSymbolTables()
     return pSymbolTables;
 }
 
-void SymbolTables::NewSymbolTable(const bool &clear_local)
+void SymbolTables::NewSymbolTable()
 {
-    vert_symtabs.push_back(symbol_table_t());
-    if (clear_local)
+    int current = sub_symtab_num.size();
+    sub_symtab_num.push_back(0);
+    if (current)
     {
-        func_inner_syms.clear();
+        sub_symtab_num[current - 1]++;
     }
+    vert_symtabs.push_back(symbol_table_t());
 }
 
-void SymbolTables::DeleteSymbolTable(const bool &clear_local)
+void SymbolTables::DeleteSymbolTable()
 {
+    sub_symtab_num.pop_back();
     vert_symtabs.pop_back();
-    if (clear_local)
-    {
-        func_inner_syms.clear();
-    }
 }
 
 std::string SymbolTables::Mark(const std::string &name, const int &mark)
@@ -60,6 +59,25 @@ void SymbolTables::RecordSymbol(const std::string &ident, const Symbol &value)
 {
     assert(vert_symtabs.back().find(ident) == vert_symtabs.back().end());
     vert_symtabs.back()[ident] = value;
+}
+
+std::string SymbolTables::GetName(const std::string &ident)
+{
+    int index;
+    for (index = vert_symtabs.size() - 1; index >= 0; --index)
+    {
+        if (vert_symtabs[index].find(ident) != vert_symtabs[index].end())
+        {
+            break;
+        }
+    }
+    assert(index >= 0);
+    std::string name = ident + "_" + std::to_string(index);
+    if (index)
+    {
+        name += "_" + std::to_string(sub_symtab_num[index - 1]);
+    }
+    return name;
 }
 
 Symbol SymbolTables::GetSymbol(const std::string &ident)
@@ -81,16 +99,6 @@ Symbol SymbolTables::GetSymbol(const std::string &ident)
     }
     assert(false);
     return Symbol(Symbol::VAR, -1);
-}
-
-void SymbolTables::LocalAllocate(const std::string &ident)
-{
-    func_inner_syms.insert(local_symbol_t(ident, vert_symtabs.size()));
-}
-
-bool SymbolTables::LocalAllocated(const std::string &ident)
-{
-    return func_inner_syms.count(local_symbol_t(ident, vert_symtabs.size()));
 }
 
 int SymbolTables::NewBranchMark()
