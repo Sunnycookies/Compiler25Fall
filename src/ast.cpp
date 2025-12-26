@@ -196,13 +196,13 @@ Operand FuncDefAST::Dump() const
     Operand return_val = block->Dump();
     if (!return_val.IsReturnMark())
     {
-        if (func_type == BType::INT)
-        {
-            printer->Ret(Operand());
-        }
-        else if (func_type == BType::VOID)
+        if (func_type == BType::VOID)
         {
             printer->Ret(Operand().SetAsReturnMark());
+        }
+        else
+        {
+            printer->Ret(Operand());
         }
     }
     printer->EndCurBrac();
@@ -229,12 +229,12 @@ Operand FuncFParamAST::Allocate() const
     debug << "FuncFParam Allocate\n";
 #endif
 
-    symbol_tables->RecordSymbol(ident, Symbol(Symbol::PARAM));
+    symbol_tables->RecordSymbol(ident, Symbol(Symbol::VAR));
     Symbol symbol = symbol_tables->GetSymbol(ident);
     std::string val_name = symbol_tables->Mark(ident, symbol.val);
-    printer->Alloc(val_name, type);
+    printer->Alloc(val_name, type, false);
     printer->StoreFParam(val_name, ident);
-    symbol_tables->LocalAllocate(symbol_tables->Mark(ident, symbol.val));
+    symbol_tables->LocalAllocate(ident);
     return Operand();
 }
 
@@ -503,12 +503,6 @@ Operand LValAST::Dump() const
     {
         Operand var_reg = Operand(Operand::REG);
         printer->Load(var_reg, symbol_tables->Mark(ident, symbol.val), false);
-        return var_reg;
-    }
-    else if (symbol.type == Symbol::PARAM)
-    {
-        Operand var_reg = Operand(Operand::REG);
-        printer->Load(var_reg, symbol_tables->Mark(ident, symbol.val));
         return var_reg;
     }
     return Operand();
@@ -848,10 +842,10 @@ Operand LAndExpAST::Dump() const
     std::string temp_result = symbol_tables->Mark(and_temp, branch_mark);
 
     symbol_tables->RecordSymbol(temp_result, Symbol(Symbol::VAR));
-    if (!symbol_tables->LocalAllocated(temp_result))
+    if (!symbol_tables->LocalAllocated(and_temp))
     {
         printer->Alloc(temp_result, BType::INT);
-        symbol_tables->LocalAllocate(temp_result);
+        symbol_tables->LocalAllocate(and_temp);
     }
     printer->Ne(cond, left, Operand());
     printer->Br(cond, label_then, label_else);
@@ -927,10 +921,10 @@ Operand LOrExpAST::Dump() const
     std::string temp_result = symbol_tables->Mark(or_temp, branch_mark);
 
     symbol_tables->RecordSymbol(temp_result, Symbol(Symbol::VAR));
-    if (!symbol_tables->LocalAllocated(temp_result))
+    if (!symbol_tables->LocalAllocated(or_temp))
     {
         printer->Alloc(temp_result, BType::INT);
-        symbol_tables->LocalAllocate(temp_result);
+        symbol_tables->LocalAllocate(or_temp);
     }
     printer->Ne(cond, left, Operand());
     printer->Br(cond, label_then, label_else);

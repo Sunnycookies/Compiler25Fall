@@ -77,10 +77,6 @@ Symbol SymbolTables::GetSymbol(const std::string &ident)
             {
                 return Symbol(Symbol::VAR, i);
             }
-            else if (sym.type == Symbol::PARAM)
-            {
-                return Symbol(Symbol::PARAM, i);
-            }
         }
     }
     assert(false);

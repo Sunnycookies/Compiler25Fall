@@ -15,7 +15,6 @@ public:
     {
         CONST,
         VAR,
-        PARAM,
         FUNC,
     } type;
     int val;

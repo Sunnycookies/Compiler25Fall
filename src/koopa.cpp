@@ -45,7 +45,7 @@ void KoopaCode::FParam(const BType::data_type &type, const std::string &ident, c
 
 void KoopaCode::StoreFParam(const std::string &temp, const std::string &fparam)
 {
-    *pos << "\tstore @" << fparam << ", %" << temp << "\n";
+    *pos << "\tstore @" << fparam << ", @" << temp << "\n";
 }
 
 void KoopaCode::PostFunc(const BType::data_type &type)
