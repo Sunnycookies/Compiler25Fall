@@ -34,10 +34,6 @@ BType::BType(const BType &t)
     array_size = t.array_size;
     if (type == ARRAY)
     {
-        if (array_base_type)
-        {
-            delete array_base_type;
-        }
         array_base_type = new BType(*(t.array_base_type));
     }
     else

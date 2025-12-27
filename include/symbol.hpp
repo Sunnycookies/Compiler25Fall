@@ -25,7 +25,7 @@ public:
     Symbol(const symbol_type &t, const int &v = 0);
     Symbol(const symbol_type &t, const BType &ret_type);
     Symbol(const Symbol &s);
-    BType &FuncRetType();
+    BType FuncRetType();
 };
 
 class SymbolTables

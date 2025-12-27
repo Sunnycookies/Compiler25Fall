@@ -29,7 +29,7 @@ Symbol::Symbol(const Symbol &s)
     ret = s.ret;
 }
 
-BType &Symbol::FuncRetType()
+BType Symbol::FuncRetType()
 {
     assert(type == FUNC);
     return ret;

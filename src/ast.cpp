@@ -121,7 +121,7 @@ Operand VarDeclAST::Dump() const
     return Operand();
 }
 
-BType VarDefAST::current_type = BType::VOID;
+BType VarDefAST::current_type = BType();
 
 Operand VarDefAST::Dump() const
 {
