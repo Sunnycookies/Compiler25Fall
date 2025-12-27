@@ -15,32 +15,14 @@ void KoopaCode::EndCurBrac()
     *pos << "}\n";
 }
 
-void KoopaCode::Type(const BType::data_type &type)
-{
-    switch (type)
-    {
-    case BType::INT:
-        *pos << "i32";
-        return;
-    case BType::ARRAY:
-        *pos << "*i32";
-        return;
-    case BType::VOID:
-    default:
-        return;
-    }
-}
-
 void KoopaCode::PreFunc(const std::string &func)
 {
-    bool flag = true;
     *pos << "\nfun @" << func << "(";
 }
 
-void KoopaCode::FParam(const BType::data_type &type, const std::string &ident, const bool &comma)
+void KoopaCode::FParam(const BType &type, const std::string &ident, const bool &comma)
 {
-    *pos << (comma ? ", " : "") << "@" << ident << ": ";
-    Type(type);
+    *pos << (comma ? ", " : "") << "@" << ident << type.Short(true);
 }
 
 void KoopaCode::StoreFParam(const std::string &temp, const std::string &fparam)
@@ -48,11 +30,9 @@ void KoopaCode::StoreFParam(const std::string &temp, const std::string &fparam)
     *pos << "\tstore @" << fparam << ", @" << temp << "\n";
 }
 
-void KoopaCode::PostFunc(const BType::data_type &type)
+void KoopaCode::PostFunc(const BType &type)
 {
-    *pos << ")" << (type == BType::VOID ? "" : ": ");
-    Type(type);
-    *pos << " {\n";
+    *pos << ")" << type.Short(true) << " {\n";
 }
 
 void KoopaCode::Label(const std::string &label)
@@ -60,40 +40,30 @@ void KoopaCode::Label(const std::string &label)
     *pos << "%" << label << ":\n";
 }
 
-void KoopaCode::DeclFunc(const std::string &ident, const std::deque<BType::data_type> &params, const BType::data_type &ret_type)
+void KoopaCode::DeclFunc(const std::string &ident, const std::deque<BType> &ret_and_params)
 {
     *pos << "decl @" << ident << "(";
     bool comma = false;
-    for (int i = 0, n = params.size(); i < n; ++i)
+    for (int i = 1, n = ret_and_params.size(); i < n; ++i)
     {
         if (comma)
         {
             *pos << ", ";
         }
-        Type(params[i]);
+        *pos << ret_and_params[i].Short(false);
         comma = true;
     }
-    *pos << ")";
-    if (ret_type != BType::VOID)
-    {
-        *pos << ": ";
-        Type(ret_type);
-    }
-    *pos << "\n";
+    *pos << ")" << ret_and_params[0].Short(true) << "\n";
 }
 
-void KoopaCode::Alloc(const std::string &var, const BType::data_type &type, const bool &temp)
+void KoopaCode::Alloc(const std::string &var, const BType &type, const bool &temp)
 {
-    *pos << "\t" << (temp ? "%" : "@") << var << " = alloc ";
-    Type(type);
-    *pos << "\n";
+    *pos << "\t" << (temp ? "%" : "@") << var << " = alloc " << type << "\n";
 }
 
-void KoopaCode::GlobalAlloc(const std::string &var, const BType::data_type &type, const Operand &v)
+void KoopaCode::GlobalAlloc(const std::string &var, const BType &type, const Operand &v)
 {
-    *pos << "\nglobal @" << var << " = alloc ";
-    Type(type);
-    *pos << ", ";
+    *pos << "\nglobal @" << var << " = alloc " << type << ", ";
     if (v.IsNormal())
     {
         *pos << v << "\n";
@@ -112,6 +82,20 @@ void KoopaCode::Store(const Operand &reg_or_imm, const std::string &var, const b
 void KoopaCode::Load(const Operand &reg, const std::string &var, const bool &temp)
 {
     *pos << "\t" << reg << " = load " << (temp ? "%" : "@") << var << "\n";
+}
+
+void KoopaCode::GetElemPtr(const Operand &dst, const std::string &arr, const std::deque<Operand> &indices)
+{
+    Operand tmp = Operand(Operand::REG);
+    int i = 0;
+    *pos << "\t" << tmp << " = getelemptr @" << arr << ", " << indices[i++] << "\n";
+    for (int n = indices.size(); i < n; ++i)
+    {
+        Operand new_tmp = Operand(Operand::REG);
+        *pos << "\t" << new_tmp << " = getelemptr " << tmp << ", " << indices[i] << "\n";
+        tmp = new_tmp;
+    }
+    *pos << "\t" << dst << " = load " << tmp << "\n";
 }
 
 void KoopaCode::Br(const Operand &cond, const std::string &t_label, const std::string &f_label)

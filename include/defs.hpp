@@ -2,6 +2,8 @@
 
 #include <string>
 #include <iostream>
+#include <deque>
+#include "operand.hpp"
 
 #ifdef DEBUG
 extern std::ostream &debug;
@@ -22,5 +24,17 @@ public:
         VOID,
         INT,
         ARRAY,
-    };
+    } type;
+    BType *array_base_type;
+    int array_size;
+    BType();
+    BType(const data_type &t, std::deque<Operand> array_sizes = {});
+    BType(const BType &t);
+    ~BType();
+    std::string Short(const bool &colon = false) const;
+    BType &operator=(const BType &t);
+    bool IsVoid() const;
+    bool IsInt() const;
+    bool IsArray() const;
+    friend std::ostream &operator<<(std::ostream &os, const BType &type);
 };

@@ -40,7 +40,8 @@ using namespace std;
 %type <ast_val> FuncDef FuncFParam 
 %type <ast_val> Block BlockItem Stmt MatchedStmt UnmatchedStmt
 %type <ast_val> Exp LVal PrimaryExp Number UnaryExp MulExp AddExp RelExp EqExp LAndExp LOrExp ConstExp
-%type <deque_val> AnyBlockItem MoreConstDef MoreVarDef MoreCompUnit FuncFParams FuncRParams
+%type <deque_val> MoreCompUnit MoreConstDef MoreVarDef
+%type <deque_val> AnyBlockItem AnyConstIndex AnyIndex AnyConstInitVal AnyInitVal FuncFParams FuncRParams
 
 %%
 
@@ -105,10 +106,12 @@ ConstDecl
   ;
 
 ConstDef
-  : IDENT '=' ConstInitVal {
+  : IDENT AnyConstIndex '=' ConstInitVal {
     auto ast = new ConstDefAST();
     ast->ident = *unique_ptr<string>($1);
-    ast->const_init_val = unique_ptr<BaseAST>($3);
+    deque<unique_ptr<BaseAST>> *array_sizes = $2;
+    ast->array_sizes = move(*array_sizes);
+    ast->const_init_val = unique_ptr<BaseAST>($4);
     $$ = ast;
   }
   ;
@@ -130,6 +133,28 @@ ConstInitVal
     ast->const_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
+  | '{' AnyConstInitVal '}' {
+    auto ast = new ConstInitValAST();
+    deque<unique_ptr<BaseAST>> *const_init_vals = $2;
+    ast->const_init_vals = move(*const_init_vals);
+    $$ = ast;
+  }
+  ;
+
+AnyConstInitVal
+  : {
+    $$ = new deque<unique_ptr<BaseAST>>;
+  }
+  | ConstInitVal {
+    deque<unique_ptr<BaseAST>> *const_init_vals = new deque<unique_ptr<BaseAST>>;
+    const_init_vals->push_front(unique_ptr<BaseAST>($1));
+    $$ = const_init_vals;
+  }
+  | ConstInitVal ',' AnyConstInitVal {
+    deque<unique_ptr<BaseAST>> *const_init_vals = $3;
+    const_init_vals->push_front(unique_ptr<BaseAST>($1));
+    $$ = const_init_vals;
+  }
   ;
 
 VarDecl
@@ -144,17 +169,21 @@ VarDecl
   ;
 
 VarDef
-  : IDENT {
+  : IDENT AnyConstIndex {
     auto ast = new VarDefAST();
     ast->type = VarDefAST::IDENT;
     ast->ident = *unique_ptr<string>($1);
+    deque<unique_ptr<BaseAST>> *array_sizes = $2;
+    ast->array_sizes = move(*array_sizes);
     $$ = ast;
   }
-  | IDENT '=' InitVal {
+  | IDENT AnyConstIndex '=' InitVal {
     auto ast = new VarDefAST();
     ast->type = VarDefAST::INITVAL;
     ast->ident = *unique_ptr<string>($1);
-    ast->init_val = unique_ptr<BaseAST>($3);
+    deque<unique_ptr<BaseAST>> *array_sizes = $2;
+    ast->array_sizes = move(*array_sizes);
+    ast->init_val = unique_ptr<BaseAST>($4);
     $$ = ast;
   }
   ;
@@ -175,6 +204,39 @@ InitVal
     auto ast = new InitValAST();
     ast->exp = unique_ptr<BaseAST>($1);
     $$ = ast;
+  }
+  | '{' AnyInitVal '}' {
+    auto ast = new InitValAST();
+    deque<unique_ptr<BaseAST>> *init_vals = $2;
+    ast->init_vals = move(*init_vals);
+    $$ = ast;
+  }
+  ;
+
+AnyInitVal
+  : {
+    $$ = new deque<unique_ptr<BaseAST>>;
+  }
+  | InitVal {
+    deque<unique_ptr<BaseAST>> *init_vals = new deque<unique_ptr<BaseAST>>;
+    init_vals->push_front(unique_ptr<BaseAST>($1));
+    $$ = init_vals;
+  }
+  | InitVal ',' AnyInitVal {
+    deque<unique_ptr<BaseAST>> *init_vals = $3;
+    init_vals->push_front(unique_ptr<BaseAST>($1));
+    $$ = init_vals;
+  }
+  ;
+
+AnyConstIndex
+  : {
+    $$ = new deque<unique_ptr<BaseAST>>;
+  }
+  | '[' ConstExp ']' AnyConstIndex {
+    deque<unique_ptr<BaseAST>> *array_sizes = $4;
+    array_sizes->push_front(unique_ptr<BaseAST>($2));
+    $$ = array_sizes;
   }
   ;
 
@@ -362,10 +424,23 @@ Exp
   ;
 
 LVal
-  : IDENT {
+  : IDENT AnyIndex {
     auto ast = new LValAST();
     ast->ident = *unique_ptr<string>($1);
+    deque<unique_ptr<BaseAST>> *array_indices = $2;
+    ast->array_indices = move(*array_indices);
     $$ = ast;
+  }
+  ;
+
+AnyIndex
+  : {
+    $$ = new deque<unique_ptr<BaseAST>>;
+  }
+  | '[' Exp ']' AnyIndex {
+    deque<unique_ptr<BaseAST>> *array_indices = $4;
+    array_indices->push_front(unique_ptr<BaseAST>($2));
+    $$ = array_indices;
   }
   ;
 

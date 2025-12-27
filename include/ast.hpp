@@ -62,7 +62,7 @@ public:
 class ConstDeclAST : public BaseAST
 {
 public:
-    BType::data_type type;
+    BType type;
     std::deque<std::unique_ptr<BaseAST>> const_defs;
     Operand Dump() const override;
 };
@@ -71,6 +71,7 @@ class ConstDefAST : public BaseAST
 {
 public:
     std::string ident;
+    std::deque<std::unique_ptr<BaseAST>> array_sizes;
     std::unique_ptr<BaseAST> const_init_val;
     Operand Dump() const override;
 };
@@ -79,13 +80,14 @@ class ConstInitValAST : public BaseAST
 {
 public:
     std::unique_ptr<BaseAST> const_exp;
+    std::deque<std::unique_ptr<BaseAST>> const_init_vals;
     Operand Dump() const override;
 };
 
 class VarDeclAST : public BaseAST
 {
 public:
-    BType::data_type b_type;
+    BType b_type;
     std::deque<std::unique_ptr<BaseAST>> var_defs;
     Operand Dump() const override;
 };
@@ -93,13 +95,14 @@ public:
 class VarDefAST : public BaseAST
 {
 public:
-    static BType::data_type current_type;
+    static BType current_type;
     enum var_def_type
     {
         IDENT,
         INITVAL,
     } type;
     std::string ident;
+    std::deque<std::unique_ptr<BaseAST>> array_sizes;
     std::unique_ptr<BaseAST> init_val;
     Operand Dump() const override;
 };
@@ -108,6 +111,7 @@ class InitValAST : public BaseAST
 {
 public:
     std::unique_ptr<BaseAST> exp;
+    std::deque<std::unique_ptr<BaseAST>> init_vals;
     Operand Dump() const override;
 };
 
@@ -120,7 +124,7 @@ public:
 class FuncDefAST : public BaseAST
 {
 public:
-    BType::data_type func_type;
+    BType func_type;
     std::string ident;
     std::deque<std::unique_ptr<BaseAST>> params;
     std::unique_ptr<BaseAST> block;
@@ -131,7 +135,7 @@ class FuncFParamAST : public BaseAST
 {
 public:
     static bool comma;
-    BType::data_type type;
+    BType type;
     std::string ident;
     Operand Dump() const override;
     Operand Allocate() const;
@@ -204,6 +208,7 @@ class LValAST : public BaseAST
 {
 public:
     std::string ident;
+    std::deque<std::unique_ptr<BaseAST>> array_indices;
     Operand Dump() const override;
 };
 

@@ -22,22 +22,22 @@ Operand ProgramAST::Dump() const
 #endif
 
     symbol_tables->NewSymbolTable();
-    printer->DeclFunc("getint", std::deque<BType::data_type>(), BType::INT);
-    printer->DeclFunc("getch", std::deque<BType::data_type>(), BType::INT);
-    printer->DeclFunc("getarray", std::deque<BType::data_type>({BType::ARRAY}), BType::INT);
-    printer->DeclFunc("putint", std::deque<BType::data_type>({BType::INT}), BType::VOID);
-    printer->DeclFunc("putch", std::deque<BType::data_type>({BType::INT}), BType::VOID);
-    printer->DeclFunc("putarray", std::deque<BType::data_type>({BType::INT, BType::ARRAY}), BType::VOID);
-    printer->DeclFunc("starttime", std::deque<BType::data_type>(), BType::VOID);
-    printer->DeclFunc("stoptime", std::deque<BType::data_type>(), BType::VOID);
-    symbol_tables->RecordSymbol("getint", Symbol(Symbol::FUNC, BType::INT));
-    symbol_tables->RecordSymbol("getch", Symbol(Symbol::FUNC, BType::INT));
-    symbol_tables->RecordSymbol("getarray", Symbol(Symbol::FUNC, BType::INT));
-    symbol_tables->RecordSymbol("putint", Symbol(Symbol::FUNC, BType::VOID));
-    symbol_tables->RecordSymbol("putch", Symbol(Symbol::FUNC, BType::VOID));
-    symbol_tables->RecordSymbol("putarray", Symbol(Symbol::FUNC, BType::VOID));
-    symbol_tables->RecordSymbol("starttime", Symbol(Symbol::FUNC, BType::VOID));
-    symbol_tables->RecordSymbol("stoptime", Symbol(Symbol::FUNC, BType::VOID));
+    printer->DeclFunc("getint", {BType::INT});
+    printer->DeclFunc("getch", {BType::INT});
+    printer->DeclFunc("getarray", {BType::INT, BType(BType::INT, {Operand()})});
+    printer->DeclFunc("putint", {BType::VOID, BType::INT});
+    printer->DeclFunc("putch", {BType::VOID, BType::INT});
+    printer->DeclFunc("putarray", {BType::VOID, BType::INT, BType(BType::INT, {Operand()})});
+    printer->DeclFunc("starttime", {BType::VOID});
+    printer->DeclFunc("stoptime", {BType::VOID});
+    symbol_tables->RecordSymbol("getint", Symbol(Symbol::FUNC, BType(BType::INT)));
+    symbol_tables->RecordSymbol("getch", Symbol(Symbol::FUNC, BType(BType::INT)));
+    symbol_tables->RecordSymbol("getarray", Symbol(Symbol::FUNC, BType(BType::INT)));
+    symbol_tables->RecordSymbol("putint", Symbol(Symbol::FUNC, BType(BType::VOID)));
+    symbol_tables->RecordSymbol("putch", Symbol(Symbol::FUNC, BType(BType::VOID)));
+    symbol_tables->RecordSymbol("putarray", Symbol(Symbol::FUNC, BType(BType::VOID)));
+    symbol_tables->RecordSymbol("starttime", Symbol(Symbol::FUNC, BType(BType::VOID)));
+    symbol_tables->RecordSymbol("stoptime", Symbol(Symbol::FUNC, BType(BType::VOID)));
     for (int i = 0, n = comp_units.size(); i < n; ++i)
     {
         comp_units[i]->Dump();
@@ -121,7 +121,7 @@ Operand VarDeclAST::Dump() const
     return Operand();
 }
 
-BType::data_type VarDefAST::current_type = BType::VOID;
+BType VarDefAST::current_type = BType::VOID;
 
 Operand VarDefAST::Dump() const
 {
@@ -132,7 +132,6 @@ Operand VarDefAST::Dump() const
     symbol_tables->RecordSymbol(ident, Symbol(Symbol::VAR));
     if (DeclAST::global)
     {
-        Symbol symbol = symbol_tables->GetSymbol(ident);
         Operand val = Operand().SetAsReturnMark();
         if (type == INITVAL)
         {
@@ -191,7 +190,7 @@ Operand FuncDefAST::Dump() const
     Operand return_val = block->Dump();
     if (!return_val.IsReturnMark())
     {
-        if (func_type == BType::VOID)
+        if (func_type.IsVoid())
         {
             printer->Ret(Operand().SetAsReturnMark());
         }
@@ -487,11 +486,12 @@ Operand LValAST::Dump() const
 #endif
 
     Symbol symbol = symbol_tables->GetSymbol(ident);
+    assert(array_indices.size() == 0 || symbol.type == Symbol::VAR_ARRAY || symbol.type == Symbol::CONST_ARRAY);
     if (symbol.type == Symbol::CONST)
     {
         return Operand(Operand::IMM, symbol.val);
     }
-    else if (symbol.type == Symbol::VAR)
+    if (symbol.type == Symbol::VAR)
     {
         Operand var_reg = Operand(Operand::REG);
         printer->Load(var_reg, symbol_tables->GetName(ident), false);
@@ -536,7 +536,7 @@ Operand UnaryExpAST::Dump() const
             r_params.push_back(params[i]->Dump());
         }
         Symbol symbol = symbol_tables->GetSymbol(op_or_func);
-        if (symbol.FuncRetType() == BType::VOID)
+        if (symbol.FuncRetType().IsVoid())
         {
             printer->Call(op_or_func, r_params, Operand().SetAsReturnMark());
             return Operand();

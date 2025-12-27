@@ -15,13 +15,17 @@ public:
     {
         CONST,
         VAR,
+        CONST_ARRAY,
+        VAR_ARRAY,
         FUNC,
     } type;
     int val;
-    Symbol() = default;
+    BType ret;
+    Symbol();
     Symbol(const symbol_type &t, const int &v = 0);
-    Symbol(const symbol_type &t, const BType::data_type &ret_type);
-    BType::data_type FuncRetType();
+    Symbol(const symbol_type &t, const BType &ret_type);
+    Symbol(const Symbol &s);
+    BType &FuncRetType();
 };
 
 class SymbolTables
