@@ -50,7 +50,7 @@ void KoopaCode::PreFunc(const std::string &func)
 
 void KoopaCode::FParam(const BType &type, const std::string &ident, const bool &comma)
 {
-    *pos << (comma ? ", " : "") << "@" << ident << type.Short(true);
+    *pos << (comma ? ", " : "") << "@" << ident << ": " << type;
 }
 
 void KoopaCode::StoreFParam(const std::string &temp, const std::string &fparam)
@@ -60,7 +60,7 @@ void KoopaCode::StoreFParam(const std::string &temp, const std::string &fparam)
 
 void KoopaCode::PostFunc(const BType &type)
 {
-    *pos << ")" << type.Short(true) << " {\n";
+    *pos << ")" << (type.IsVoid() ? "" : ": ") << type << " {\n";
 }
 
 void KoopaCode::Label(const std::string &label)
@@ -72,16 +72,17 @@ void KoopaCode::DeclFunc(const std::string &ident, const std::deque<BType> &ret_
 {
     *pos << "decl @" << ident << "(";
     bool comma = false;
+    const BType &return_type = ret_and_params[0];
     for (int i = 1, n = ret_and_params.size(); i < n; ++i)
     {
         if (comma)
         {
             *pos << ", ";
         }
-        *pos << ret_and_params[i].Short(false);
+        *pos << ret_and_params[i];
         comma = true;
     }
-    *pos << ")" << ret_and_params[0].Short(true) << "\n";
+    *pos << ")" << (return_type.IsVoid() ? "" : ": ") << return_type << "\n";
 }
 
 void KoopaCode::Alloc(const std::string &var, const BType &type, const bool &temp)
@@ -170,14 +171,19 @@ void KoopaCode::Load(const Operand &reg, const Operand &elemptr)
     *pos << "\t" << reg << " = load " << elemptr << "\n";
 }
 
-void KoopaCode::GetElemptr(const Operand &dst, const std::string &arr, const Operand &index)
+void KoopaCode::GetElemptr(const Operand &elemptr, const std::string &arr, const Operand &index)
 {
-    *pos << "\t" << dst << " = getelemptr @" << arr << ", " << index << "\n";
+    *pos << "\t" << elemptr << " = getelemptr @" << arr << ", " << index << "\n";
 }
 
-void KoopaCode::GetElemptr(const Operand &dst, const Operand &base_ptr, const Operand &index)
+void KoopaCode::GetElemptr(const Operand &elemptr, const Operand &base_ptr, const Operand &index)
 {
-    *pos << "\t" << dst << " = getelemptr " << base_ptr << ", " << index << "\n";
+    *pos << "\t" << elemptr << " = getelemptr " << base_ptr << ", " << index << "\n";
+}
+
+void KoopaCode::GetPtr(const Operand &elemptr, const Operand &ptr, const Operand &index)
+{
+    *pos << "\t" << elemptr << " = getptr " << ptr << ", " << index << "\n";
 }
 
 void KoopaCode::Br(const Operand &cond, const std::string &t_label, const std::string &f_label)

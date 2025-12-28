@@ -35,6 +35,12 @@ BType Symbol::FuncRetType()
     return ret_or_array;
 }
 
+BType Symbol::ArrayType()
+{
+    assert(type == CONST_ARRAY || type == VAR_ARRAY);
+    return ret_or_array;
+}
+
 Symbol &Symbol::SetVal(const int &v)
 {
     val = v;

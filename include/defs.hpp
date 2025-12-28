@@ -31,7 +31,6 @@ public:
     BType(const data_type &t, std::deque<Operand> array_sizes = {});
     BType(const BType &t);
     ~BType();
-    std::string Short(const bool &colon = false) const;
     BType &operator=(const BType &t);
     bool IsVoid() const;
     bool IsInt() const;

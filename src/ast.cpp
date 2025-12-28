@@ -367,7 +367,7 @@ Operand FuncFParamAST::Dump() const
     debug << "FuncFParam Dump\n";
 #endif
 
-    printer->FParam(type, ident, comma);
+    printer->FParam(ParamType(), ident, comma);
     return Operand();
 }
 
@@ -377,11 +377,36 @@ Operand FuncFParamAST::Allocate() const
     debug << "FuncFParam Allocate\n";
 #endif
 
-    symbol_tables->RecordSymbol(ident, Symbol(Symbol::VAR));
-    std::string val_name = symbol_tables->GetName(ident);
-    printer->Alloc(val_name, type, false);
-    printer->StoreFParam(val_name, ident);
+    if (is_array)
+    {
+        BType arr_type = ParamType();
+        symbol_tables->RecordSymbol(ident, Symbol(Symbol::VAR_ARRAY, arr_type));
+        std::string arr_name = symbol_tables->GetName(ident);
+        printer->Alloc(arr_name, arr_type, false);
+        printer->StoreFParam(arr_name, ident);
+    }
+    else
+    {
+        symbol_tables->RecordSymbol(ident, Symbol(Symbol::VAR));
+        std::string val_name = symbol_tables->GetName(ident);
+        printer->Alloc(val_name, type, false);
+        printer->StoreFParam(val_name, ident);
+    }
     return Operand();
+}
+
+BType FuncFParamAST::ParamType() const
+{
+    if (is_array)
+    {
+        std::deque<Operand> sizes({Operand()});
+        for (int i = 0, n = array_sizes.size(); i < n; ++i)
+        {
+            sizes.push_back(array_sizes[i]->Dump());
+        }
+        return BType(type.type, sizes);
+    }
+    return type;
 }
 
 /*
@@ -666,9 +691,14 @@ Operand LValAST::Dump() const
     if (symbol.type == Symbol::CONST_ARRAY || symbol.type == Symbol::VAR_ARRAY)
     {
         Operand elemptr = GetElemptr();
-        Operand value = Operand(Operand::REG);
-        printer->Load(value, elemptr);
-        return value;
+        int array_dim = symbol.ArrayType().ArraySizes().size();
+        if (array_dim == array_indices.size())
+        {
+            Operand val = Operand(Operand::REG);
+            printer->Load(val, elemptr);
+            return val;
+        }
+        return elemptr;
     }
     assert(false);
     return Operand();
@@ -680,23 +710,53 @@ Operand LValAST::GetElemptr() const
     debug << "LVal GetElemptr\n";
 #endif
 
-    assert(array_indices.size());
     Symbol symbol = symbol_tables->GetSymbol(ident);
     assert(symbol.type == Symbol::VAR_ARRAY || symbol.type == Symbol::CONST_ARRAY);
+    BType arr_type = symbol.ArrayType();
+    std::deque<int> arr_sizes = arr_type.ArraySizes();
+
     Operand elemptr = Operand(Operand::REG);
+    if (array_indices.size() == 0)
+    {
+        if (arr_sizes[0])
+        {
+            printer->GetElemptr(elemptr, symbol_tables->GetName(ident), Operand());
+        }
+        else
+        {
+            Operand ptr = Operand(Operand::REG);
+            printer->Load(ptr, symbol_tables->GetName(ident), false);
+            printer->GetPtr(elemptr, ptr, Operand());
+        }
+        return elemptr;
+    }
+
     for (int i = 0, n = array_indices.size(); i < n; ++i)
     {
         Operand index = array_indices[i]->Dump();
         if (i == 0)
         {
-            printer->GetElemptr(elemptr, symbol_tables->GetName(ident), index);
+            if (arr_sizes[i])
+            {
+                printer->GetElemptr(elemptr, symbol_tables->GetName(ident), index);
+            }
+            else
+            {
+                Operand ptr = Operand(Operand::REG);
+                printer->Load(ptr, symbol_tables->GetName(ident), false);
+                printer->GetPtr(elemptr, ptr, index);
+            }
+            continue;
         }
-        else
-        {
-            Operand new_elemptr = Operand(Operand::REG);
-            printer->GetElemptr(new_elemptr, elemptr, index);
-            elemptr = new_elemptr;
-        }
+        Operand new_elemptr = Operand(Operand::REG);
+        printer->GetElemptr(new_elemptr, elemptr, index);
+        elemptr = new_elemptr;
+    }
+    if (array_indices.size() < arr_sizes.size())
+    {
+        Operand new_elemptr = Operand(Operand::REG);
+        printer->GetElemptr(new_elemptr, elemptr, Operand());
+        elemptr = new_elemptr;
     }
     return elemptr;
 }

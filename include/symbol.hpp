@@ -26,6 +26,7 @@ public:
     Symbol(const symbol_type &t, const BType &data_type);
     Symbol(const Symbol &s);
     BType FuncRetType();
+    BType ArrayType();
     Symbol &SetVal(const int &v);
 };
 

@@ -285,7 +285,17 @@ FuncFParam
   : INT IDENT {
     auto ast = new FuncFParamAST();
     ast->type = BType::INT;
+    ast->is_array = false;
     ast->ident = *unique_ptr<string>($2);
+    $$ = ast;
+  }
+  | INT IDENT '[' ']' AnyConstIndex {
+    auto ast = new FuncFParamAST();
+    ast->type = BType::INT;
+    ast->is_array = true;
+    ast->ident = *unique_ptr<string>($2);
+    deque<unique_ptr<BaseAST>> *arr_sizes = $5;
+    ast->array_sizes = move(*arr_sizes);
     $$ = ast;
   }
   ;

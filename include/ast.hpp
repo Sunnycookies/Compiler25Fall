@@ -150,8 +150,11 @@ public:
     static bool comma;
     BType type;
     std::string ident;
+    bool is_array;
+    std::deque<std::unique_ptr<BaseAST>> array_sizes;
     Operand Dump() const override;
     Operand Allocate() const;
+    BType ParamType() const;
 };
 
 /*

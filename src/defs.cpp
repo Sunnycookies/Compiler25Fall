@@ -17,6 +17,7 @@ BType::BType(const data_type &t, std::deque<Operand> array_sizes)
     {
         type = ARRAY;
         array_size = array_sizes.front().ImmValue();
+        assert(array_size >= 0);
         array_sizes.pop_front();
         array_base_type = new BType(t, array_sizes);
     }
@@ -48,31 +49,6 @@ BType::~BType()
     {
         delete array_base_type;
     }
-}
-
-std::string BType::Short(const bool &colon) const
-{
-    std::string prefix = (colon ? ": " : "");
-    if (type == VOID)
-    {
-        return "";
-    }
-    if (type == INT)
-    {
-        return prefix + "i32";
-    }
-    prefix += "*";
-    BType *base = array_base_type;
-    while (base->type == ARRAY)
-    {
-        prefix += "*";
-        base = base->array_base_type;
-    }
-    if (base->type == VOID)
-    {
-        return "";
-    }
-    return prefix + base->Short(false);
 }
 
 BType &BType::operator=(const BType &t)
@@ -147,7 +123,14 @@ std::ostream &operator<<(std::ostream &os, const BType &type)
         os << "i32";
         break;
     case BType::ARRAY:
-        os << "[" << *(type.array_base_type) << ", " << type.array_size << "]";
+        if (type.array_size)
+        {
+            os << "[" << *(type.array_base_type) << ", " << type.array_size << "]";
+        }
+        else
+        {
+            os << "*" << *(type.array_base_type);
+        }
         break;
     case BType::VOID:
     default:

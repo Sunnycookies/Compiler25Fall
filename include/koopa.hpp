@@ -32,6 +32,7 @@ public:
     void Load(const Operand &reg, const Operand &elemptr);
     void GetElemptr(const Operand &elemptr, const std::string &arr, const Operand &index);
     void GetElemptr(const Operand &elemptr, const Operand &base_ptr, const Operand &index);
+    void GetPtr(const Operand &elemptr, const Operand &ptr, const Operand &index);
     void Br(const Operand &cond, const std::string &t_label, const std::string &f_label);
     void Jump(const std::string &label);
     void Add(const Operand &dst, const Operand &src1, const Operand &src2);
