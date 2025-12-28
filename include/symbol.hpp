@@ -20,12 +20,13 @@ public:
         FUNC,
     } type;
     int val;
-    BType ret;
+    BType ret_or_array;
     Symbol();
     Symbol(const symbol_type &t, const int &v = 0);
-    Symbol(const symbol_type &t, const BType &ret_type);
+    Symbol(const symbol_type &t, const BType &data_type);
     Symbol(const Symbol &s);
     BType FuncRetType();
+    Symbol &SetVal(const int &v);
 };
 
 class SymbolTables

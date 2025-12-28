@@ -32,7 +32,7 @@ Operand::Operand(const operand_type &t, const int &v)
     }
 }
 
-int Operand::ImmValue()
+int Operand::ImmValue() const
 {
     assert(type == IMM);
     return value.imm_value;

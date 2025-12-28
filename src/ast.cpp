@@ -80,6 +80,7 @@ Operand ConstDeclAST::Dump() const
     debug << "ConstDecl Dump\n";
 #endif
 
+    ConstDefAST::base_type = type;
     for (int i = 0, n = const_defs.size(); i < n; ++i)
     {
         Operand const_value = const_defs[i]->Dump();
@@ -87,14 +88,55 @@ Operand ConstDeclAST::Dump() const
     return Operand();
 }
 
+BType ConstDefAST::base_type = BType();
+
 Operand ConstDefAST::Dump() const
 {
 #ifdef DEBUG
     debug << "ConstDef Dump\n";
 #endif
 
-    Operand const_val = const_init_val->Dump();
-    symbol_tables->RecordSymbol(ident, Symbol(Symbol::CONST, const_val.ImmValue()));
+    if (array_sizes.empty())
+    {
+        Operand const_val = const_init_val->Dump();
+        symbol_tables->RecordSymbol(ident, Symbol(Symbol::CONST, const_val.ImmValue()));
+        return Operand();
+    }
+
+    std::deque<Operand> sizes;
+    for (int i = 0, n = array_sizes.size(); i < n; ++i)
+    {
+        sizes.push_back(array_sizes[i]->Dump());
+    }
+    BType arr_type = BType(base_type.type, sizes);
+    symbol_tables->RecordSymbol(ident, Symbol(Symbol::CONST_ARRAY, arr_type));
+
+    if (DeclAST::global && ((ConstInitValAST *)(const_init_val.get()))->const_init_vals.empty())
+    {
+        printer->GlobalAlloc(symbol_tables->GetName(ident), arr_type, std::deque<Operand>());
+        return Operand();
+    }
+
+    int step = 1;
+    std::deque<int> steps;
+    for (int i = sizes.size() - 1; i >= 0; --i)
+    {
+        steps.push_front(step);
+        step *= sizes[i].ImmValue();
+    }
+    steps.push_front(step);
+
+    std::deque<Operand> vals;
+    int index = 0;
+    ((ConstInitValAST *)(const_init_val.get()))->Initialize(steps, vals, index, 0);
+    if (DeclAST::global)
+    {
+        printer->GlobalAlloc(symbol_tables->GetName(ident), arr_type, vals);
+    }
+    else
+    {
+        printer->Alloc(symbol_tables->GetName(ident), arr_type, vals);
+    }
     return Operand();
 }
 
@@ -104,7 +146,41 @@ Operand ConstInitValAST::Dump() const
     debug << "ConstInitVal Dump\n";
 #endif
 
+    assert(type == CONST_EXP);
     return const_exp->Dump();
+}
+
+void ConstInitValAST::Initialize(const std::deque<int> &steps, std::deque<Operand> &vals, int &index, const int &dim) const
+{
+#ifdef DEBUG
+    debug << "ConstInitVal Initialize\n";
+#endif
+
+    if (type == CONST_EXP)
+    {
+        index++;
+        Operand value = const_exp->Dump();
+        assert(!value.IsReg());
+        vals.push_back(value);
+        return;
+    }
+
+    int target = index + steps[dim];
+    for (int i = 0, n = const_init_vals.size(); i < n; ++i)
+    {
+        int j = dim + 1;
+        assert(j < steps.size());
+        while (index % steps[j])
+        {
+            ++j;
+        }
+        ((ConstInitValAST *)(const_init_vals[i].get()))->Initialize(steps, vals, index, j);
+    }
+    while (index < target)
+    {
+        index++;
+        vals.push_back(Operand());
+    }
 }
 
 Operand VarDeclAST::Dump() const
@@ -113,15 +189,15 @@ Operand VarDeclAST::Dump() const
     debug << "VarDecl Dump\n";
 #endif
 
+    VarDefAST::base_type = b_type;
     for (int i = 0, n = var_defs.size(); i < n; ++i)
     {
-        VarDefAST::current_type = b_type;
         var_defs[i]->Dump();
     }
     return Operand();
 }
 
-BType VarDefAST::current_type = BType();
+BType VarDefAST::base_type = BType();
 
 Operand VarDefAST::Dump() const
 {
@@ -129,22 +205,66 @@ Operand VarDefAST::Dump() const
     debug << "VarDef Dump\n";
 #endif
 
-    symbol_tables->RecordSymbol(ident, Symbol(Symbol::VAR));
-    if (DeclAST::global)
+    if (array_sizes.empty())
     {
-        Operand val = Operand().SetAsReturnMark();
+        symbol_tables->RecordSymbol(ident, Symbol(Symbol::VAR));
+        if (DeclAST::global)
+        {
+            Operand val = Operand().SetAsReturnMark();
+            if (type == INITVAL)
+            {
+                val = init_val->Dump();
+            }
+            printer->GlobalAlloc(symbol_tables->GetName(ident), base_type, val);
+            return Operand();
+        }
+        printer->Alloc(symbol_tables->GetName(ident), base_type, false);
         if (type == INITVAL)
         {
-            val = init_val->Dump();
+            Operand val = init_val->Dump();
+            printer->Store(val, symbol_tables->GetName(ident), false);
         }
-        printer->GlobalAlloc(symbol_tables->GetName(ident), current_type, val);
         return Operand();
     }
-    printer->Alloc(symbol_tables->GetName(ident), current_type, false);
-    if (type == INITVAL)
+
+    std::deque<Operand> sizes;
+    for (int i = 0, n = array_sizes.size(); i < n; ++i)
     {
-        Operand val = init_val->Dump();
-        printer->Store(val, symbol_tables->GetName(ident), false);
+        sizes.push_back(array_sizes[i]->Dump());
+    }
+    BType arr_type = BType(base_type.type, sizes);
+    symbol_tables->RecordSymbol(ident, Symbol(Symbol::VAR_ARRAY, arr_type));
+
+    if (type == IDENT || ((InitValAST *)(init_val.get()))->init_vals.empty())
+    {
+        if (DeclAST::global)
+        {
+            printer->GlobalAlloc(symbol_tables->GetName(ident), arr_type, std::deque<Operand>());
+            return Operand();
+        }
+        printer->Alloc(symbol_tables->GetName(ident), arr_type, std::deque<Operand>());
+        return Operand();
+    }
+
+    int step = 1;
+    std::deque<int> steps;
+    for (int i = sizes.size() - 1; i >= 0; --i)
+    {
+        steps.push_front(step);
+        step *= sizes[i].ImmValue();
+    }
+    steps.push_front(step);
+
+    std::deque<Operand> vals;
+    int index = 0;
+    ((InitValAST *)(init_val.get()))->Initialize(steps, vals, index, 0);
+    if (DeclAST::global)
+    {
+        printer->GlobalAlloc(symbol_tables->GetName(ident), arr_type, vals);
+    }
+    else
+    {
+        printer->Alloc(symbol_tables->GetName(ident), arr_type, vals);
     }
     return Operand();
 }
@@ -155,7 +275,41 @@ Operand InitValAST::Dump() const
     debug << "InitVal Dump\n";
 #endif
 
+    assert(type == EXP);
     return exp->Dump();
+}
+
+void InitValAST::Initialize(const std::deque<int> &steps, std::deque<Operand> &vals, int &index, const int &dim) const
+{
+#ifdef DEBUG
+    debug << "InitVal Initialize\n";
+#endif
+
+    if (type == EXP)
+    {
+        index++;
+        Operand value = exp->Dump();
+        assert(!(DeclAST::global && value.IsReg()));
+        vals.push_back(value);
+        return;
+    }
+
+    int target = index + steps[dim];
+    for (int i = 0, n = init_vals.size(); i < n; ++i)
+    {
+        int j = dim + 1;
+        assert(j < steps.size());
+        while (index % steps[j])
+        {
+            ++j;
+        }
+        ((InitValAST *)(init_vals[i].get()))->Initialize(steps, vals, index, j);
+    }
+    while (index < target)
+    {
+        index++;
+        vals.push_back(Operand());
+    }
 }
 
 /*
@@ -319,9 +473,21 @@ Operand StmtAST::Dump() const
 #ifdef DEBUG
         debug << "\tStmt - LVAL\n";
 #endif
-        Operand operand = exp->Dump();
         std::string val_name = ((LValAST *)(lval_or_block.get()))->ident;
-        printer->Store(operand, symbol_tables->GetName(val_name), false);
+        Symbol symbol = symbol_tables->GetSymbol(val_name);
+        Operand value = exp->Dump();
+        if (symbol.type == Symbol::VAR)
+        {
+            printer->Store(value, symbol_tables->GetName(val_name), false);
+            return Operand();
+        }
+        if (symbol.type == Symbol::VAR_ARRAY)
+        {
+            Operand elemptr = ((LValAST *)(lval_or_block.get()))->GetElemptr();
+            printer->Store(value, elemptr);
+            return Operand();
+        }
+        assert(false);
     }
 
     else if (type == EXP && exp)
@@ -493,11 +659,46 @@ Operand LValAST::Dump() const
     }
     if (symbol.type == Symbol::VAR)
     {
-        Operand var_reg = Operand(Operand::REG);
-        printer->Load(var_reg, symbol_tables->GetName(ident), false);
-        return var_reg;
+        Operand value = Operand(Operand::REG);
+        printer->Load(value, symbol_tables->GetName(ident), false);
+        return value;
     }
+    if (symbol.type == Symbol::CONST_ARRAY || symbol.type == Symbol::VAR_ARRAY)
+    {
+        Operand elemptr = GetElemptr();
+        Operand value = Operand(Operand::REG);
+        printer->Load(value, elemptr);
+        return value;
+    }
+    assert(false);
     return Operand();
+}
+
+Operand LValAST::GetElemptr() const
+{
+#ifdef DEBUG
+    debug << "LVal GetElemptr\n";
+#endif
+
+    assert(array_indices.size());
+    Symbol symbol = symbol_tables->GetSymbol(ident);
+    assert(symbol.type == Symbol::VAR_ARRAY || symbol.type == Symbol::CONST_ARRAY);
+    Operand elemptr = Operand(Operand::REG);
+    for (int i = 0, n = array_indices.size(); i < n; ++i)
+    {
+        Operand index = array_indices[i]->Dump();
+        if (i == 0)
+        {
+            printer->GetElemptr(elemptr, symbol_tables->GetName(ident), index);
+        }
+        else
+        {
+            Operand new_elemptr = Operand(Operand::REG);
+            printer->GetElemptr(new_elemptr, elemptr, index);
+            elemptr = new_elemptr;
+        }
+    }
+    return elemptr;
 }
 
 Operand PrimaryExpAST::Dump() const

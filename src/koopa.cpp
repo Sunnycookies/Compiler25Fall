@@ -1,5 +1,33 @@
 #include "koopa.hpp"
 
+void KoopaCode::PrintArray(const std::deque<int> &arr_sizes, const std::deque<Operand> &init_vals, int &index, const int &dim)
+{
+    *pos << "{";
+    if (dim == arr_sizes.size() - 1)
+    {
+        for (int i = 0; i < arr_sizes[dim]; ++i)
+        {
+            *pos << init_vals[index++];
+            if (i != arr_sizes[dim] - 1)
+            {
+                *pos << ", ";
+            }
+        }
+    }
+    else
+    {
+        for (int i = 0; i < arr_sizes[dim]; ++i)
+        {
+            PrintArray(arr_sizes, init_vals, index, dim + 1);
+            if (i != arr_sizes[dim] - 1)
+            {
+                *pos << ", ";
+            }
+        }
+    }
+    *pos << "}";
+}
+
 KoopaCode::KoopaCode(std::ostream &os)
 {
     pos = &os;
@@ -61,6 +89,40 @@ void KoopaCode::Alloc(const std::string &var, const BType &type, const bool &tem
     *pos << "\t" << (temp ? "%" : "@") << var << " = alloc " << type << "\n";
 }
 
+void KoopaCode::Alloc(const std::string &arr, const BType &type, const std::deque<Operand> &init_vals)
+{
+    *pos << "\t@" << arr << " = alloc " << type << "\n";
+    if (init_vals.empty())
+    {
+        return;
+    }
+    std::deque<std::pair<Operand, int>> elemptrs;
+    std::deque<int> arr_sizes = type.ArraySizes();
+    int index = 0;
+    for (int i = 0; i < arr_sizes[0]; ++i)
+    {
+        Operand elemptr = Operand(Operand::REG);
+        GetElemptr(elemptr, arr, Operand(Operand::IMM, i));
+        elemptrs.push_back({elemptr, 1});
+    }
+    while (!elemptrs.empty())
+    {
+        auto [current_ptr, dim] = elemptrs.front();
+        elemptrs.pop_front();
+        if (dim == arr_sizes.size())
+        {
+            Store(init_vals[index++], current_ptr);
+            continue;
+        }
+        for (int i = 0; i < arr_sizes[dim]; ++i)
+        {
+            Operand elemptr = Operand(Operand::REG);
+            GetElemptr(elemptr, current_ptr, Operand(Operand::IMM, i));
+            elemptrs.push_back({elemptr, dim + 1});
+        }
+    }
+}
+
 void KoopaCode::GlobalAlloc(const std::string &var, const BType &type, const Operand &v)
 {
     *pos << "\nglobal @" << var << " = alloc " << type << ", ";
@@ -74,9 +136,28 @@ void KoopaCode::GlobalAlloc(const std::string &var, const BType &type, const Ope
     }
 }
 
+void KoopaCode::GlobalAlloc(const std::string &arr, const BType &type, const std::deque<Operand> &init_vals)
+{
+    *pos << "\nglobal @" << arr << " = alloc " << type << ", ";
+    if (init_vals.empty())
+    {
+        *pos << "zeroinit\n";
+        return;
+    }
+    std::deque<int> arr_sizes = type.ArraySizes();
+    int index = 0;
+    PrintArray(arr_sizes, init_vals, index, 0);
+    *pos << "\n";
+}
+
 void KoopaCode::Store(const Operand &reg_or_imm, const std::string &var, const bool &temp)
 {
     *pos << "\tstore " << reg_or_imm << ", " << (temp ? "%" : "@") << var << "\n";
+}
+
+void KoopaCode::Store(const Operand &reg_or_imm, const Operand &elemptr)
+{
+    *pos << "\tstore " << reg_or_imm << ", " << elemptr << "\n";
 }
 
 void KoopaCode::Load(const Operand &reg, const std::string &var, const bool &temp)
@@ -84,18 +165,19 @@ void KoopaCode::Load(const Operand &reg, const std::string &var, const bool &tem
     *pos << "\t" << reg << " = load " << (temp ? "%" : "@") << var << "\n";
 }
 
-void KoopaCode::GetElemPtr(const Operand &dst, const std::string &arr, const std::deque<Operand> &indices)
+void KoopaCode::Load(const Operand &reg, const Operand &elemptr)
 {
-    Operand tmp = Operand(Operand::REG);
-    int i = 0;
-    *pos << "\t" << tmp << " = getelemptr @" << arr << ", " << indices[i++] << "\n";
-    for (int n = indices.size(); i < n; ++i)
-    {
-        Operand new_tmp = Operand(Operand::REG);
-        *pos << "\t" << new_tmp << " = getelemptr " << tmp << ", " << indices[i] << "\n";
-        tmp = new_tmp;
-    }
-    *pos << "\t" << dst << " = load " << tmp << "\n";
+    *pos << "\t" << reg << " = load " << elemptr << "\n";
+}
+
+void KoopaCode::GetElemptr(const Operand &dst, const std::string &arr, const Operand &index)
+{
+    *pos << "\t" << dst << " = getelemptr @" << arr << ", " << index << "\n";
+}
+
+void KoopaCode::GetElemptr(const Operand &dst, const Operand &base_ptr, const Operand &index)
+{
+    *pos << "\t" << dst << " = getelemptr " << base_ptr << ", " << index << "\n";
 }
 
 void KoopaCode::Br(const Operand &cond, const std::string &t_label, const std::string &f_label)

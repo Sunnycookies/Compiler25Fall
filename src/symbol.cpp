@@ -4,35 +4,41 @@ Symbol::Symbol()
 {
     type = VAR;
     val = 0;
-    ret = BType();
+    ret_or_array = BType();
 }
 
 Symbol::Symbol(const symbol_type &t, const int &v)
 {
     type = t;
     val = v;
-    ret = BType();
+    ret_or_array = BType();
 }
 
-Symbol::Symbol(const symbol_type &t, const BType &ret_type)
+Symbol::Symbol(const symbol_type &t, const BType &data_type)
 {
-    assert(t == FUNC);
+    assert(t == FUNC || t == CONST_ARRAY || t == VAR_ARRAY);
     type = t;
     val = 0;
-    ret = ret_type;
+    ret_or_array = data_type;
 }
 
 Symbol::Symbol(const Symbol &s)
 {
     type = s.type;
     val = s.val;
-    ret = s.ret;
+    ret_or_array = s.ret_or_array;
 }
 
 BType Symbol::FuncRetType()
 {
     assert(type == FUNC);
-    return ret;
+    return ret_or_array;
+}
+
+Symbol &Symbol::SetVal(const int &v)
+{
+    val = v;
+    return *this;
 }
 
 SymbolTables *SymbolTables::pSymbolTables = nullptr;
@@ -113,7 +119,7 @@ Symbol SymbolTables::GetSymbol(const std::string &ident)
             }
             if (sym.type == Symbol::VAR || sym.type == Symbol::VAR_ARRAY)
             {
-                return Symbol(Symbol::VAR, i);
+                return sym.SetVal(i);
             }
         }
     }

@@ -130,11 +130,13 @@ MoreConstDef
 ConstInitVal
   : ConstExp {
     auto ast = new ConstInitValAST();
+    ast->type = ConstInitValAST::CONST_EXP;
     ast->const_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | '{' AnyConstInitVal '}' {
     auto ast = new ConstInitValAST();
+    ast->type = ConstInitValAST::INITIALIZER;
     deque<unique_ptr<BaseAST>> *const_init_vals = $2;
     ast->const_init_vals = move(*const_init_vals);
     $$ = ast;
@@ -202,11 +204,13 @@ MoreVarDef
 InitVal
   : Exp {
     auto ast = new InitValAST();
+    ast->type = InitValAST::EXP;
     ast->exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | '{' AnyInitVal '}' {
     auto ast = new InitValAST();
+    ast->type = InitValAST::INITIALIZER;
     deque<unique_ptr<BaseAST>> *init_vals = $2;
     ast->init_vals = move(*init_vals);
     $$ = ast;

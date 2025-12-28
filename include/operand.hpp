@@ -22,7 +22,7 @@ public:
     Operand(const Operand &operand);
     Operand(const operand_type &t, const int &v = 0);
     ~Operand();
-    int ImmValue();
+    int ImmValue() const;
     bool IsReg() const;
     bool IsNormal() const;
     Operand &SetAsReturnMark();

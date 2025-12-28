@@ -36,5 +36,7 @@ public:
     bool IsVoid() const;
     bool IsInt() const;
     bool IsArray() const;
+    std::deque<int> ArraySizes() const;
+    bool operator==(const BType &t) const;
     friend std::ostream &operator<<(std::ostream &os, const BType &type);
 };

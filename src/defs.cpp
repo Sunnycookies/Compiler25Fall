@@ -109,6 +109,36 @@ bool BType::IsArray() const
     return type == ARRAY;
 }
 
+std::deque<int> BType::ArraySizes() const
+{
+    assert(type == ARRAY);
+    std::deque<int> arr_sizes({array_size});
+    BType *current = array_base_type;
+    while (current->type == ARRAY)
+    {
+        arr_sizes.push_back(current->array_size);
+        current = current->array_base_type;
+    }
+    return arr_sizes;
+}
+
+bool BType::operator==(const BType &t) const
+{
+    if (type != t.type)
+    {
+        return false;
+    }
+    if (type == ARRAY)
+    {
+        if (array_size && t.array_size && (array_size != t.array_size))
+        {
+            return false;
+        }
+        return *array_base_type == *(t.array_base_type);
+    }
+    return true;
+}
+
 std::ostream &operator<<(std::ostream &os, const BType &type)
 {
     switch (type.type)

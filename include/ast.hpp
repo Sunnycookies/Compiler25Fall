@@ -70,6 +70,7 @@ public:
 class ConstDefAST : public BaseAST
 {
 public:
+    static BType base_type;
     std::string ident;
     std::deque<std::unique_ptr<BaseAST>> array_sizes;
     std::unique_ptr<BaseAST> const_init_val;
@@ -79,9 +80,15 @@ public:
 class ConstInitValAST : public BaseAST
 {
 public:
+    enum const_init_val_type
+    {
+        CONST_EXP,
+        INITIALIZER,
+    } type;
     std::unique_ptr<BaseAST> const_exp;
     std::deque<std::unique_ptr<BaseAST>> const_init_vals;
     Operand Dump() const override;
+    void Initialize(const std::deque<int> &steps, std::deque<Operand> &vals, int &index, const int &dim) const;
 };
 
 class VarDeclAST : public BaseAST
@@ -95,7 +102,7 @@ public:
 class VarDefAST : public BaseAST
 {
 public:
-    static BType current_type;
+    static BType base_type;
     enum var_def_type
     {
         IDENT,
@@ -110,9 +117,15 @@ public:
 class InitValAST : public BaseAST
 {
 public:
+    enum init_val_type
+    {
+        EXP,
+        INITIALIZER,
+    } type;
     std::unique_ptr<BaseAST> exp;
     std::deque<std::unique_ptr<BaseAST>> init_vals;
     Operand Dump() const override;
+    void Initialize(const std::deque<int> &steps, std::deque<Operand> &vals, int &index, const int &dim) const;
 };
 
 /*
@@ -210,6 +223,7 @@ public:
     std::string ident;
     std::deque<std::unique_ptr<BaseAST>> array_indices;
     Operand Dump() const override;
+    Operand GetElemptr() const;
 };
 
 class PrimaryExpAST : public BaseAST
