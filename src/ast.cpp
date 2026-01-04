@@ -96,6 +96,8 @@ Operand ConstDefAST::Dump() const
     debug << "ConstDef Dump\n";
 #endif
 
+    assert(const_init_val.get());
+
     if (array_sizes.empty())
     {
         Operand const_val = const_init_val->Dump();
@@ -117,14 +119,12 @@ Operand ConstDefAST::Dump() const
         return Operand();
     }
 
-    int step = 1;
-    std::deque<int> steps;
-    for (int i = sizes.size() - 1; i >= 0; --i)
+    std::deque<int> steps({1});
+    for (int i = sizes.size() - 1, step = 1; i >= 0; --i)
     {
-        steps.push_front(step);
         step *= sizes[i].ImmValue();
+        steps.push_front(step);
     }
-    steps.push_front(step);
 
     std::deque<Operand> vals;
     int index = 0;
@@ -156,31 +156,43 @@ void ConstInitValAST::Initialize(const std::deque<int> &steps, std::deque<Operan
     debug << "ConstInitVal Initialize\n";
 #endif
 
+    assert(type == INITIALIZER || const_exp.get());
+
     if (type == CONST_EXP)
     {
-        index++;
         Operand value = const_exp->Dump();
         assert(!value.IsReg());
         vals.push_back(value);
+        index++;
         return;
     }
+
+    int steps_size = steps.size();
+    assert(steps[steps_size - 1] == 1);
 
     int target = index + steps[dim];
     for (int i = 0, n = const_init_vals.size(); i < n; ++i)
     {
         int j = dim + 1;
-        assert(j < steps.size());
+        assert(j < steps_size);
         while (index % steps[j])
         {
             ++j;
         }
         ((ConstInitValAST *)(const_init_vals[i].get()))->Initialize(steps, vals, index, j);
     }
+#ifdef DEBUG
+    debug << "ConstInitVal Target: " << target << ", Index: " << index << "\n";
+#endif
     while (index < target)
     {
-        index++;
         vals.push_back(Operand());
+        index++;
     }
+#ifdef DEBUG
+    debug << "ConstInitVal vals size: " << vals.size() << "\n";
+#endif
+    assert(index == target);
 }
 
 Operand VarDeclAST::Dump() const
@@ -204,6 +216,8 @@ Operand VarDefAST::Dump() const
 #ifdef DEBUG
     debug << "VarDef Dump\n";
 #endif
+
+    assert(type == IDENT || init_val.get());
 
     if (array_sizes.empty())
     {
@@ -235,7 +249,7 @@ Operand VarDefAST::Dump() const
     BType arr_type = BType(base_type.type, sizes);
     symbol_tables->RecordSymbol(ident, Symbol(Symbol::VAR_ARRAY, arr_type));
 
-    if (type == IDENT || ((InitValAST *)(init_val.get()))->init_vals.empty())
+    if (type == IDENT)
     {
         if (DeclAST::global)
         {
@@ -246,14 +260,12 @@ Operand VarDefAST::Dump() const
         return Operand();
     }
 
-    int step = 1;
-    std::deque<int> steps;
-    for (int i = sizes.size() - 1; i >= 0; --i)
+    std::deque<int> steps({1});
+    for (int i = sizes.size() - 1, step = 1; i >= 0; --i)
     {
-        steps.push_front(step);
         step *= sizes[i].ImmValue();
+        steps.push_front(step);
     }
-    steps.push_front(step);
 
     std::deque<Operand> vals;
     int index = 0;
@@ -285,31 +297,43 @@ void InitValAST::Initialize(const std::deque<int> &steps, std::deque<Operand> &v
     debug << "InitVal Initialize\n";
 #endif
 
+    assert(type == INITIALIZER || exp.get());
+
     if (type == EXP)
     {
-        index++;
         Operand value = exp->Dump();
         assert(!(DeclAST::global && value.IsReg()));
         vals.push_back(value);
+        index++;
         return;
     }
+
+    int steps_size = steps.size();
+    assert(steps[steps_size - 1] == 1);
 
     int target = index + steps[dim];
     for (int i = 0, n = init_vals.size(); i < n; ++i)
     {
         int j = dim + 1;
-        assert(j < steps.size());
+        assert(j < steps_size);
         while (index % steps[j])
         {
             ++j;
         }
         ((InitValAST *)(init_vals[i].get()))->Initialize(steps, vals, index, j);
     }
+#ifdef DEBUG
+    debug << "InitVal Target: " << target << ", Index: " << index << "\n";
+#endif
     while (index < target)
     {
-        index++;
         vals.push_back(Operand());
+        index++;
     }
+#ifdef DEBUG
+    debug << "InitVal vals size: " << vals.size() << "\n";
+#endif
+    assert(index == target);
 }
 
 /*

@@ -31,6 +31,7 @@ BType::BType(const data_type &t, std::deque<Operand> array_sizes)
 
 BType::BType(const BType &t)
 {
+    assert(t.type != ARRAY || t.array_base_type);
     type = t.type;
     array_size = t.array_size;
     if (type == ARRAY)
@@ -48,6 +49,7 @@ BType::~BType()
     if (array_base_type)
     {
         delete array_base_type;
+        array_base_type = nullptr;
     }
 }
 

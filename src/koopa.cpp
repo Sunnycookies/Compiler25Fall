@@ -92,6 +92,7 @@ void KoopaCode::Alloc(const std::string &var, const BType &type, const bool &tem
 
 void KoopaCode::Alloc(const std::string &arr, const BType &type, const std::deque<Operand> &init_vals)
 {
+    assert(type.IsArray());
     *pos << "\t@" << arr << " = alloc " << type << "\n";
     if (init_vals.empty())
     {
@@ -100,6 +101,7 @@ void KoopaCode::Alloc(const std::string &arr, const BType &type, const std::dequ
     std::deque<std::pair<Operand, int>> elemptrs;
     std::deque<int> arr_sizes = type.ArraySizes();
     int index = 0;
+    assert(arr_sizes.size());
     for (int i = 0; i < arr_sizes[0]; ++i)
     {
         Operand elemptr = Operand(Operand::REG);
