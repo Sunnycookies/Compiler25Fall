@@ -28,6 +28,7 @@ public:
     void Sgt(const Register &rd, const Register &rs1, const Register &rs2);
     void Seqz(const Register &rd, const Register &rs);
     void Snez(const Register &rd, const Register &rs);
+    void Sll(const Register &rd, const Register &rs1, const Register &rs2);
     void Xor(const Register &rd, const Register &rs1, const Register &rs2);
     void Xori(const Register &rd, const Register &rs1, const int &imm);
     void Or(const Register &rd, const Register &rs1, const Register &rs2);

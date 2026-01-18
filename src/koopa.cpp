@@ -28,6 +28,28 @@ void KoopaCode::PrintArray(const std::deque<int> &arr_sizes, const std::deque<Op
     *pos << "}";
 }
 
+void KoopaCode::PrintInit(const std::string &arr, const std::deque<int> &arr_sizes, const std::deque<Operand> &init_vals, int &index, const Operand &base, const int &dim)
+{
+    for (int i = 0, n = arr_sizes[dim], size_len = arr_sizes.size(); i < n; ++i)
+    {
+        Operand elemptr = Operand(Operand::REG);
+        if (dim == 0)
+        {
+            GetElemptr(elemptr, arr, Operand(Operand::IMM, i));
+        }
+        else
+        {
+            GetElemptr(elemptr, base, Operand(Operand::IMM, i));
+        }
+        if (dim == size_len - 1)
+        {
+            Store(init_vals[index++], elemptr);
+            continue;
+        }
+        PrintInit(arr, arr_sizes, init_vals, index, elemptr, dim + 1);
+    }
+}
+
 KoopaCode::KoopaCode(std::ostream &os)
 {
     pos = &os;
@@ -98,32 +120,10 @@ void KoopaCode::Alloc(const std::string &arr, const BType &type, const std::dequ
     {
         return;
     }
-    std::deque<std::pair<Operand, int>> elemptrs;
-    std::deque<int> arr_sizes = type.ArraySizes();
     int index = 0;
+    std::deque<int> arr_sizes = type.ArraySizes();
     assert(arr_sizes.size());
-    for (int i = 0; i < arr_sizes[0]; ++i)
-    {
-        Operand elemptr = Operand(Operand::REG);
-        GetElemptr(elemptr, arr, Operand(Operand::IMM, i));
-        elemptrs.push_back({elemptr, 1});
-    }
-    while (!elemptrs.empty())
-    {
-        auto [current_ptr, dim] = elemptrs.front();
-        elemptrs.pop_front();
-        if (dim == arr_sizes.size())
-        {
-            Store(init_vals[index++], current_ptr);
-            continue;
-        }
-        for (int i = 0; i < arr_sizes[dim]; ++i)
-        {
-            Operand elemptr = Operand(Operand::REG);
-            GetElemptr(elemptr, current_ptr, Operand(Operand::IMM, i));
-            elemptrs.push_back({elemptr, dim + 1});
-        }
-    }
+    PrintInit(arr, arr_sizes, init_vals, index, Operand(Operand::IMM), 0);
 }
 
 void KoopaCode::GlobalAlloc(const std::string &var, const BType &type, const Operand &v)

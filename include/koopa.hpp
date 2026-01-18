@@ -11,6 +11,8 @@ class KoopaCode
 private:
     std::ostream *pos;
     void PrintArray(const std::deque<int> &arr_sizes, const std::deque<Operand> &init_vals, int &index, const int &dim);
+    void PrintInit(const std::string &arr, const std::deque<int> &arr_sizes,
+                   const std::deque<Operand> &init_vals, int &index, const Operand &base, const int &dim);
 
 public:
     KoopaCode(std::ostream &os = std::cout);

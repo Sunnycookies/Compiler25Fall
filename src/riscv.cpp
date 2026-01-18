@@ -119,6 +119,11 @@ void RiscvCode::Snez(const Register &rd, const Register &rs)
     *pos << "\tsnez " << rd << ", " << rs << "\n";
 }
 
+void RiscvCode::Sll(const Register &rd, const Register &rs1, const Register &rs2)
+{
+    *pos << "\tsll " << rd << ", " << rs1 << ", " << rs2 << "\n";
+}
+
 void RiscvCode::Xor(const Register &rd, const Register &rs1, const Register &rs2)
 {
     *pos << "\txor " << rd << ", " << rs1 << ", " << rs2 << "\n";

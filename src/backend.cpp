@@ -35,6 +35,36 @@ void Backend::Visit(std::ostream &os = std::cout)
     Visit(raw_program.funcs);
 }
 
+int Backend::GetAllocSize(const koopa_raw_type_t &ty)
+{
+    switch (ty->tag)
+    {
+    case KOOPA_RTT_UNIT:
+        return 0;
+    case KOOPA_RTT_INT32:
+    case KOOPA_RTT_POINTER:
+        return DATA_SIZE;
+    case KOOPA_RTT_ARRAY:
+        return ty->data.array.len * GetAllocSize(ty->data.array.base);
+    default:
+        assert(false);
+    }
+}
+
+int Backend::IsPowOfTwo(const int &number)
+{
+    if (number < 0)
+    {
+        return -1;
+    }
+    double exp = log2(number);
+    if (floor(exp) == exp)
+    {
+        return int(exp);
+    }
+    return -1;
+}
+
 void Backend::Visit(const koopa_raw_slice_t &slice)
 {
 #ifdef DEBUG
@@ -72,6 +102,8 @@ void Backend::Visit(const koopa_raw_function_t &func)
         return;
     }
 
+    Register::Initialize();
+
     printer.Text();
     printer.Global(func->name + 1);
     printer.Label(func->name + 1);
@@ -80,6 +112,7 @@ void Backend::Visit(const koopa_raw_function_t &func)
     int temp_size = 0;
     int ra_size = 0;
     int local_size = 0;
+    int alloc_size = 0;
     for (size_t i = 0; i < func->bbs.len; ++i)
     {
         auto bb = reinterpret_cast<koopa_raw_basic_block_t>(func->bbs.buffer[i]);
@@ -97,11 +130,16 @@ void Backend::Visit(const koopa_raw_function_t &func)
                 int param_num = inst->kind.data.call.args.len;
                 temp_size = std::max(temp_size, param_num - 8);
             }
+            if (inst->kind.tag == KOOPA_RVT_ALLOC)
+            {
+                alloc_size += GetAllocSize(inst->ty->data.pointer.base);
+            }
         }
     }
 
     ra_size *= DATA_SIZE;
     local_size *= DATA_SIZE;
+    local_size += alloc_size;
     temp_size *= DATA_SIZE;
     stack_size = ra_size + local_size + temp_size;
     stack_size = (stack_size + ALIGN_SIZE - 1) / ALIGN_SIZE * ALIGN_SIZE;
@@ -154,6 +192,7 @@ void Backend::Visit(const koopa_raw_value_t &value)
         Visit(value, kind.data.load);
         break;
     case KOOPA_RVT_ALLOC:
+        Alloc(value);
         break;
     case KOOPA_RVT_BRANCH:
         Visit(kind.data.branch);
@@ -166,6 +205,15 @@ void Backend::Visit(const koopa_raw_value_t &value)
         break;
     case KOOPA_RVT_GLOBAL_ALLOC:
         Visit(value, kind.data.global_alloc);
+        break;
+    case KOOPA_RVT_AGGREGATE:
+        Visit(kind.data.aggregate);
+        break;
+    case KOOPA_RVT_GET_PTR:
+        Visit(value, kind.data.get_ptr);
+        break;
+    case KOOPA_RVT_GET_ELEM_PTR:
+        Visit(value, kind.data.get_elem_ptr);
         break;
     default:
         assert(false);
@@ -185,6 +233,10 @@ void Backend::Visit(const koopa_raw_return_t &ret)
         {
             printer.Li(ret_reg, ret.value->kind.data.integer.value);
         }
+        else if (Register::Cached(ret.value))
+        {
+            printer.Mv(ret_reg, Register(ret.value));
+        }
         else
         {
             printer.Lw(Register(Register::SP), ret_reg, stack.GetOffset(ret.value));
@@ -199,7 +251,119 @@ void Backend::Visit(const koopa_raw_return_t &ret)
         printer.Addi(Register(Register::SP), Register(Register::SP), stack.GetStackSize());
     }
     printer.Ret();
-    ret_reg.Unallocate();
+}
+
+void Backend::Visit(const koopa_raw_store_t &store)
+{
+#ifdef DEBUG
+    debug << "Visit Store\n";
+#endif
+
+    bool cached = false;
+    Register src = Register(store.value, &cached);
+    if (!cached)
+    {
+        if (store.value->kind.tag == KOOPA_RVT_INTEGER)
+        {
+            printer.Li(src, store.value->kind.data.integer.value);
+        }
+        else if (store.value->kind.tag == KOOPA_RVT_FUNC_ARG_REF)
+        {
+            int ind = store.value->kind.data.func_arg_ref.index;
+            if (ind < Register::PARAM_REG_NUM)
+            {
+                Register param_reg = Register(Register::PARAM, ind);
+                printer.Mv(src, param_reg);
+            }
+            else
+            {
+                int offset = stack.GetStackSize() + (ind - Register::PARAM_REG_NUM) * DATA_SIZE;
+                printer.Lw(Register(Register::SP), src, offset);
+            }
+        }
+        else
+        {
+            printer.Lw(Register(Register::SP), src, stack.GetOffset(store.value));
+        }
+    }
+
+    if (store.dest->kind.tag == KOOPA_RVT_GLOBAL_ALLOC)
+    {
+        Register addr = Register(store.dest, &cached);
+        if (!cached)
+        {
+            printer.La(addr, store.dest->name + 1);
+        }
+        printer.Sw(addr, src, 0);
+    }
+    else if (store.dest->kind.tag == KOOPA_RVT_GET_ELEM_PTR || store.dest->kind.tag == KOOPA_RVT_GET_PTR)
+    {
+        Register addr = Register(store.dest, &cached);
+        if (!cached)
+        {
+            printer.Lw(Register(Register::SP), addr, stack.GetOffset(store.dest));
+        }
+        printer.Sw(addr, src, 0);
+    }
+    else
+    {
+        stack.Push(store.dest, DATA_SIZE);
+        printer.Sw(Register(Register::SP), src, stack.GetOffset(store.dest));
+    }
+}
+
+void Backend::Visit(const koopa_raw_branch_t &branch)
+{
+#ifdef DEBUG
+    debug << "Visit Branch\n";
+#endif
+
+    bool cached = false;
+    Register cond = Register(branch.cond, &cached);
+    if (!cached)
+    {
+        printer.Lw(Register(Register::SP), cond, stack.GetOffset(branch.cond));
+    }
+    printer.Bnez(cond, branch.true_bb->name + 1);
+    printer.J(branch.false_bb->name + 1);
+}
+
+void Backend::Visit(const koopa_raw_jump_t &jump)
+{
+#ifdef DEBUG
+    debug << "Visit Jump\n";
+#endif
+
+    printer.J(jump.target->name + 1);
+}
+
+void Backend::Visit(const koopa_raw_aggregate_t &aggregate)
+{
+#ifdef DEBUG
+    debug << "Visit Aggregate\n";
+#endif
+
+    for (int i = 0; i < aggregate.elems.len; ++i)
+    {
+        auto ptr = reinterpret_cast<koopa_raw_value_t>(aggregate.elems.buffer[i]);
+        if (ptr->kind.tag == KOOPA_RVT_INTEGER)
+        {
+            printer.Word(ptr->kind.data.integer.value);
+        }
+        else
+        {
+            Visit(ptr);
+        }
+    }
+}
+
+void Backend::Alloc(const koopa_raw_value_t &alloc)
+{
+#ifdef DEBUG
+    debug << "Visit Allocate\n";
+#endif
+
+    stack.Push(alloc, GetAllocSize(alloc->ty->data.array.base));
 }
 
 void Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_binary_t &binary)
@@ -208,27 +372,33 @@ void Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_binary_t &bi
     debug << "Visit Binary\n";
 #endif
 
-    Register lhs_reg = Register(binary.lhs);
-    Register rhs_reg = Register(binary.rhs);
-    if (binary.lhs->kind.tag == KOOPA_RVT_INTEGER)
+    bool cached = false;
+    Register lhs_reg = Register(binary.lhs, &cached);
+    if (!cached)
     {
-        printer.Li(lhs_reg, binary.lhs->kind.data.integer.value);
-    }
-    else
-    {
-        printer.Lw(Register(Register::SP), lhs_reg, stack.GetOffset(binary.lhs));
-    }
-    if (binary.rhs->kind.tag == KOOPA_RVT_INTEGER)
-    {
-        printer.Li(rhs_reg, binary.rhs->kind.data.integer.value);
-    }
-    else
-    {
-        printer.Lw(Register(Register::SP), rhs_reg, stack.GetOffset(binary.rhs));
+        if (binary.lhs->kind.tag == KOOPA_RVT_INTEGER)
+        {
+            printer.Li(lhs_reg, binary.lhs->kind.data.integer.value);
+        }
+        else
+        {
+            printer.Lw(Register(Register::SP), lhs_reg, stack.GetOffset(binary.lhs));
+        }
     }
 
-    lhs_reg.Unallocate();
-    rhs_reg.Unallocate();
+    Register rhs_reg = Register(binary.rhs, &cached);
+    if (!cached)
+    {
+        if (binary.rhs->kind.tag == KOOPA_RVT_INTEGER)
+        {
+            printer.Li(rhs_reg, binary.rhs->kind.data.integer.value);
+        }
+        else
+        {
+            printer.Lw(Register(Register::SP), rhs_reg, stack.GetOffset(binary.rhs));
+        }
+    }
+
     Register result_reg = Register(value);
     switch (binary.op)
     {
@@ -281,54 +451,6 @@ void Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_binary_t &bi
 
     stack.Push(value, DATA_SIZE);
     printer.Sw(Register(Register::SP), result_reg, stack.GetOffset(value));
-    result_reg.Unallocate();
-}
-
-void Backend::Visit(const koopa_raw_store_t &store)
-{
-#ifdef DEBUG
-    debug << "Visit Store\n";
-#endif
-
-    Register dst = Register(store.dest);
-    if (store.value->kind.tag == KOOPA_RVT_INTEGER)
-    {
-        printer.Li(dst, store.value->kind.data.integer.value);
-    }
-    else if (store.value->kind.tag == KOOPA_RVT_FUNC_ARG_REF)
-    {
-        int ind = store.value->kind.data.func_arg_ref.index;
-        if (ind < Register::PARAM_REG_NUM)
-        {
-            Register param_reg = Register(Register::PARAM, ind);
-            printer.Mv(dst, param_reg);
-            param_reg.Unallocate();
-        }
-        else
-        {
-            int offset = stack.GetStackSize() + (ind - Register::PARAM_REG_NUM) * DATA_SIZE;
-            printer.Lw(Register(Register::SP), dst, offset);
-        }
-    }
-    else
-    {
-        printer.Lw(Register(Register::SP), dst, stack.GetOffset(store.value));
-    }
-
-    if (store.dest->kind.tag == KOOPA_RVT_GLOBAL_ALLOC)
-    {
-        Register addr = Register(store.dest);
-        printer.La(addr, store.dest->name + 1);
-        printer.Sw(addr, dst, 0);
-        addr.Unallocate();
-    }
-    else
-    {
-        stack.Push(store.dest, DATA_SIZE);
-        printer.Sw(Register(Register::SP), dst, stack.GetOffset(store.dest));
-    }
-
-    dst.Unallocate();
 }
 
 void Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_load_t &load)
@@ -337,42 +459,38 @@ void Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_load_t &load
     debug << "Visit Load\n";
 #endif
 
-    Register dst = Register(value);
+    bool cached = false;
+    Register dst = Register(value, &cached);
+    if (cached)
+    {
+        return;
+    }
     if (load.src->kind.tag == KOOPA_RVT_GLOBAL_ALLOC)
     {
-        Register addr = Register(load.src);
-        printer.La(addr, load.src->name + 1);
+        Register addr = Register(load.src, &cached);
+        if (!cached)
+        {
+            printer.La(addr, load.src->name + 1);
+        }
         printer.Lw(addr, dst, 0);
+    }
+    else if (load.src->kind.tag == KOOPA_RVT_GET_ELEM_PTR || load.src->kind.tag == KOOPA_RVT_GET_PTR)
+    {
+        Register addr = Register(load.src, &cached);
+        if (!cached)
+        {
+            printer.Lw(Register(Register::SP), addr, stack.GetOffset(load.src));
+        }
+        printer.Lw(addr, dst, 0);
+    }
+    else if (Register::Cached(load.src))
+    {
+        printer.Mv(dst, Register(load.src));
     }
     else
     {
         printer.Lw(Register(Register::SP), dst, stack.GetOffset(load.src));
     }
-    stack.Push(value, DATA_SIZE);
-    printer.Sw(Register(Register::SP), dst, stack.GetOffset(value));
-    dst.Unallocate();
-}
-
-void Backend::Visit(const koopa_raw_branch_t &branch)
-{
-#ifdef DEBUG
-    debug << "Visit Branch\n";
-#endif
-
-    Register cond = Register(branch.cond);
-    printer.Lw(Register(Register::SP), cond, stack.GetOffset(branch.cond));
-    printer.Bnez(cond, branch.true_bb->name + 1);
-    printer.J(branch.false_bb->name + 1);
-    cond.Unallocate();
-}
-
-void Backend::Visit(const koopa_raw_jump_t &jump)
-{
-#ifdef DEBUG
-    debug << "Visit Jump\n";
-#endif
-
-    printer.J(jump.target->name + 1);
 }
 
 void Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_call_t &call)
@@ -381,23 +499,26 @@ void Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_call_t &call
     debug << "Visit Call\n";
 #endif
 
+    bool cached = false;
     std::vector<Register> param_regs;
     int param_num = call.args.len;
     for (int i = Register::PARAM_REG_NUM; i < param_num; ++i)
     {
         auto ptr = reinterpret_cast<koopa_raw_value_t>(call.args.buffer[i]);
-        Register temp = Register(ptr);
-        if (ptr->kind.tag == KOOPA_RVT_INTEGER)
+        Register temp = Register(ptr, &cached);
+        if (!cached)
         {
-            printer.Li(temp, ptr->kind.data.integer.value);
-        }
-        else
-        {
-            printer.Lw(Register(Register::SP), temp, stack.GetOffset(ptr));
+            if (ptr->kind.tag == KOOPA_RVT_INTEGER)
+            {
+                printer.Li(temp, ptr->kind.data.integer.value);
+            }
+            else
+            {
+                printer.Lw(Register(Register::SP), temp, stack.GetOffset(ptr));
+            }
         }
         stack.Push(ptr, DATA_SIZE, true);
         printer.Sw(Register(Register::SP), temp, stack.GetOffset(ptr, true));
-        temp.Unallocate();
     }
     for (int i = 0, n = std::min(param_num, Register::PARAM_REG_NUM); i < n; ++i)
     {
@@ -407,6 +528,10 @@ void Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_call_t &call
         {
             printer.Li(param_reg, ptr->kind.data.integer.value);
         }
+        else if (Register::Cached(ptr))
+        {
+            printer.Mv(param_reg, Register(ptr));
+        }
         else
         {
             printer.Lw(Register(Register::SP), param_reg, stack.GetOffset(ptr));
@@ -414,10 +539,6 @@ void Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_call_t &call
         param_regs.push_back(param_reg);
     }
 
-    for (int i = 0, n = param_regs.size(); i < n; ++i)
-    {
-        param_regs[i].Unallocate();
-    }
     for (int i = Register::PARAM_REG_NUM; i < param_num; ++i)
     {
         stack.Pop(DATA_SIZE, true);
@@ -429,8 +550,8 @@ void Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_call_t &call
         Register ret_reg = Register(Register::RET);
         stack.Push(value, DATA_SIZE);
         printer.Sw(Register(Register::SP), ret_reg, stack.GetOffset(value));
-        ret_reg.Unallocate();
     }
+    Register::Initialize();
 }
 
 void Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_global_alloc_t &global_alloc)
@@ -448,6 +569,137 @@ void Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_global_alloc
     }
     else if (global_alloc.init->kind.tag == KOOPA_RVT_ZERO_INIT)
     {
-        printer.Zero(DATA_SIZE);
+        printer.Zero(GetAllocSize(global_alloc.init->ty));
+    }
+    else if (global_alloc.init->kind.tag == KOOPA_RVT_AGGREGATE)
+    {
+        Visit(global_alloc.init->kind.data.aggregate);
+    }
+}
+
+void Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_get_ptr_t &get_ptr)
+{
+#ifdef DEBUG
+    debug << "Visit GetPtr\n";
+#endif
+
+    bool cached = false;
+    Register base = Register(get_ptr.src, &cached);
+    if (!cached)
+    {
+        if (get_ptr.src->kind.tag == KOOPA_RVT_GLOBAL_ALLOC)
+        {
+            printer.La(base, get_ptr.src->name + 1);
+        }
+        else
+        {
+            printer.Lw(Register(Register::SP), base, stack.GetOffset(get_ptr.src));
+        }
+    }
+
+    Register addr = Register(value, &cached);
+    if (!cached)
+    {
+        int step_size = GetAllocSize(get_ptr.src->ty->data.pointer.base);
+        if (get_ptr.index->kind.tag == KOOPA_RVT_INTEGER)
+        {
+            if (get_ptr.index->kind.data.integer.value == 0)
+            {
+                printer.Mv(addr, base);
+            }
+            else
+            {
+                printer.Addi(addr, base, get_ptr.index->kind.data.integer.value * step_size);
+            }
+        }
+        else
+        {
+            Register index_reg = Register(get_ptr.index, &cached);
+            if (!cached)
+            {
+                printer.Lw(Register(Register::SP), index_reg, stack.GetOffset(get_ptr.index));
+            }
+            Register step_reg = Register(Register::IMM);
+            int exp = IsPowOfTwo(step_size);
+            if (exp == -1)
+            {
+                printer.Li(step_reg, step_size);
+                printer.Mul(index_reg, index_reg, step_reg);
+            }
+            else
+            {
+                printer.Li(step_reg, exp);
+                printer.Sll(index_reg, index_reg, step_reg);
+            }
+            printer.Add(addr, base, index_reg);
+        }
+
+        stack.Push(value, DATA_SIZE);
+        printer.Sw(Register(Register::SP), addr, stack.GetOffset(value));
+    }
+}
+
+void Backend::Visit(const koopa_raw_value_t &value, const koopa_raw_get_elem_ptr_t &get_elem_ptr)
+{
+#ifdef DEBUG
+    debug << "Visit GetElemPtr\n";
+#endif
+
+    bool cached = false;
+    Register base = Register(get_elem_ptr.src, &cached);
+    if (!cached)
+    {
+        if (get_elem_ptr.src->kind.tag == KOOPA_RVT_GLOBAL_ALLOC)
+        {
+            printer.La(base, get_elem_ptr.src->name + 1);
+        }
+        else if (get_elem_ptr.src->kind.tag == KOOPA_RVT_ALLOC)
+        {
+            printer.Addi(base, Register(Register::SP), stack.GetOffset(get_elem_ptr.src));
+        }
+        else
+        {
+            printer.Lw(Register(Register::SP), base, stack.GetOffset(get_elem_ptr.src));
+        }
+    }
+
+    Register addr = Register(value, &cached);
+    if (!cached)
+    {
+        int step_size = GetAllocSize(get_elem_ptr.src->ty->data.pointer.base->data.array.base);
+        if (get_elem_ptr.index->kind.tag == KOOPA_RVT_INTEGER)
+        {
+            if (get_elem_ptr.index->kind.data.integer.value == 0)
+            {
+                printer.Mv(addr, base);
+            }
+            else
+            {
+                printer.Addi(addr, base, get_elem_ptr.index->kind.data.integer.value * step_size);
+            }
+        }
+        else
+        {
+            Register index_reg = Register(get_elem_ptr.index, &cached);
+            if (!cached)
+            {
+                printer.Lw(Register(Register::SP), index_reg, stack.GetOffset(get_elem_ptr.index));
+            }
+            Register step_reg = Register(Register::IMM);
+            int exp = IsPowOfTwo(step_size);
+            if (exp == -1)
+            {
+                printer.Li(step_reg, step_size);
+                printer.Mul(index_reg, index_reg, step_reg);
+            }
+            else
+            {
+                printer.Li(step_reg, exp);
+                printer.Sll(index_reg, index_reg, step_reg);
+            }
+            printer.Add(addr, base, index_reg);
+        }
+        stack.Push(value, DATA_SIZE);
+        printer.Sw(Register(Register::SP), addr, stack.GetOffset(value));
     }
 }

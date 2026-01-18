@@ -4,6 +4,7 @@
 
 *.koopa
 *.s
+*.o
 
 debug/
 build/
